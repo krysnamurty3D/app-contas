@@ -1,14 +1,16 @@
-import { useState } from 'react'
-import { Plane, Plus, Trash2 } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Download, Plane, Plus, Trash2, Upload } from 'lucide-react'
 import { useTrips } from '../context/TripsContext'
 import { Modal } from './ui/Modal'
 import { COMMON_CURRENCIES } from '../lib/currencies'
+import { exportBackup, parseBackup } from '../lib/backup'
 
 export function Home() {
-  const { trips, selectTrip, createTrip, deleteTrip } = useTrips()
+  const { trips, selectTrip, createTrip, deleteTrip, importTrips } = useTrips()
   const [showNewTrip, setShowNewTrip] = useState(false)
   const [name, setName] = useState('')
   const [baseCurrency, setBaseCurrency] = useState('BRL')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleCreate = () => {
     if (!name.trim()) return
@@ -18,18 +20,65 @@ export function Home() {
     setBaseCurrency('BRL')
   }
 
+  const handleImportFile = async (file: File) => {
+    try {
+      const text = await file.text()
+      const imported = parseBackup(text)
+      const added = importTrips(imported)
+      const skipped = imported.length - added
+      const plural = (n: number, singular: string, pluralForm: string) =>
+        n === 1 ? singular : pluralForm
+      alert(
+        `${added} ${plural(added, 'viagem importada', 'viagens importadas')}.` +
+          (skipped > 0
+            ? ` ${skipped} ${plural(skipped, 'já existia e foi ignorada', 'já existiam e foram ignoradas')}.`
+            : ''),
+      )
+    } catch {
+      alert('Não foi possível importar esse arquivo. Verifique se é um backup válido.')
+    }
+  }
+
   return (
     <div className="mx-auto max-w-md min-h-screen px-5 pb-8 pt-[max(2rem,env(safe-area-inset-top))]">
       <div className="flex items-center gap-3 mb-8">
         <div className="rounded-xl bg-blue-600 p-2.5 text-white">
           <Plane size={24} />
         </div>
-        <div>
+        <div className="flex-1">
           <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
             Minhas Viagens
           </h1>
           <p className="text-sm text-neutral-500">Despesas e divisão de contas</p>
         </div>
+        <button
+          onClick={() => exportBackup(trips)}
+          disabled={trips.length === 0}
+          title="Exportar backup"
+          aria-label="Exportar backup"
+          className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-300 disabled:opacity-40"
+        >
+          <Download size={20} />
+        </button>
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          title="Importar backup"
+          aria-label="Importar backup"
+          className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
+        >
+          <Upload size={20} />
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) handleImportFile(file)
+            e.target.value = ''
+          }}
+        />
       </div>
 
       {trips.length === 0 ? (

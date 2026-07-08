@@ -16,6 +16,8 @@ interface TripsContextValue {
   addAccount: (tripId: string, account: Omit<Account, 'id'>) => void
   updateAccount: (tripId: string, account: Account) => void
   deleteAccount: (tripId: string, accountId: string) => void
+  /** Merges trips from a backup, skipping any whose id already exists. Returns how many were added. */
+  importTrips: (trips: Trip[]) => number
 }
 
 const TripsContext = createContext<TripsContextValue | null>(null)
@@ -171,6 +173,16 @@ export function TripsProvider({ children }: { children: ReactNode }) {
             : t,
         ),
       )
+    },
+    importTrips: (imported) => {
+      let added = 0
+      setTrips((prev) => {
+        const existingIds = new Set(prev.map((t) => t.id))
+        const newTrips = imported.filter((t) => !existingIds.has(t.id))
+        added = newTrips.length
+        return [...prev, ...newTrips]
+      })
+      return added
     },
   }
 
