@@ -1,13 +1,14 @@
 import { useState } from 'react'
-import { ArrowLeft, LayoutDashboard, Receipt, Users, Wallet } from 'lucide-react'
+import { ArrowLeft, HandCoins, LayoutDashboard, Receipt, Users, Wallet } from 'lucide-react'
 import { useTrips } from '../context/TripsContext'
 import { Dashboard } from './Dashboard'
 import { ExpensesTab } from './ExpensesTab'
 import { ParticipantsTab } from './ParticipantsTab'
 import { AccountsTab } from './AccountsTab'
+import { ReceivablesTab } from './ReceivablesTab'
 import type { Trip } from '../types'
 
-type Tab = 'dashboard' | 'expenses' | 'accounts' | 'participants'
+type Tab = 'dashboard' | 'expenses' | 'accounts' | 'receivables' | 'participants'
 
 export function TripShell({ trip }: { trip: Trip }) {
   const { selectTrip } = useTrips()
@@ -17,6 +18,7 @@ export function TripShell({ trip }: { trip: Trip }) {
     { id: 'dashboard', label: 'Resumo', icon: LayoutDashboard },
     { id: 'expenses', label: 'Despesas', icon: Receipt },
     { id: 'accounts', label: 'Saldos', icon: Wallet },
+    { id: 'receivables', label: 'A receber', icon: HandCoins },
     { id: 'participants', label: 'Grupo', icon: Users },
   ]
 
@@ -42,6 +44,7 @@ export function TripShell({ trip }: { trip: Trip }) {
         {tab === 'dashboard' && <Dashboard trip={trip} />}
         {tab === 'expenses' && <ExpensesTab trip={trip} />}
         {tab === 'accounts' && <AccountsTab trip={trip} />}
+        {tab === 'receivables' && <ReceivablesTab trip={trip} />}
         {tab === 'participants' && <ParticipantsTab trip={trip} />}
       </main>
 
