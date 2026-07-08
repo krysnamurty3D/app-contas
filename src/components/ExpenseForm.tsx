@@ -84,6 +84,25 @@ export function ExpenseForm({
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     )
   }
+
+  // Manual override for each subgroup's total in "Por subgrupo" mode. When a
+  // unit has no entry here, its share falls back to the automatic equal
+  // (per-person) calculation below.
+  const [customUnitAmounts, setCustomUnitAmounts] = useState<Record<string, string>>(
+    () => {
+      if (expense?.splitType === 'group') {
+        const map: Record<string, string> = {}
+        for (const u of units) {
+          const total = expense.splits
+            .filter((s) => u.memberIds.includes(s.participantId))
+            .reduce((sum, s) => sum + s.amount, 0)
+          if (total > 0.005) map[u.id] = String(total)
+        }
+        return map
+      }
+      return {}
+    },
+  )
   const [fetchingRate, setFetchingRate] = useState(false)
   const [rateError, setRateError] = useState('')
   const [installmentsEnabled, setInstallmentsEnabled] = useState(false)
@@ -116,6 +135,24 @@ export function ExpenseForm({
   )
   const customDiff = Math.round((amountNum - customTotal) * 100) / 100
 
+  const totalPeopleSelected = units
+    .filter((u) => unitIds.includes(u.id))
+    .reduce((sum, u) => sum + u.memberIds.length, 0)
+  const autoPerPersonShare =
+    totalPeopleSelected > 0 ? amountNum / totalPeopleSelected : 0
+
+  const unitAmount = (u: { id: string; memberIds: string[] }) => {
+    if (!unitIds.includes(u.id)) return 0
+    const raw = customUnitAmounts[u.id]
+    if (raw !== undefined && raw !== '') return parseFloat(raw) || 0
+    return autoPerPersonShare * u.memberIds.length
+  }
+
+  const groupTotal = units
+    .filter((u) => unitIds.includes(u.id))
+    .reduce((sum, u) => sum + unitAmount(u), 0)
+  const groupDiff = Math.round((amountNum - groupTotal) * 100) / 100
+
   const toggleParticipant = (id: string) => {
     setParticipantIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
@@ -127,7 +164,7 @@ export function ExpenseForm({
     amountNum > 0 &&
     paidBy &&
     (splitType === 'group'
-      ? unitIds.length > 0
+      ? unitIds.length > 0 && Math.abs(groupDiff) < 0.01
       : participantIds.length > 0 &&
         (splitType === 'equal' || Math.abs(customDiff) < 0.01))
 
@@ -135,11 +172,10 @@ export function ExpenseForm({
     if (!canSave) return
     let splits
     if (splitType === 'group') {
-      // Rateia por pessoa (não por subgrupo), então um subgrupo maior paga
-      // proporcionalmente mais.
+      // Cada subgrupo tem seu próprio total (automático ou editado
+      // manualmente), dividido igualmente entre os membros daquele subgrupo.
       const selectedUnits = units.filter((u) => unitIds.includes(u.id))
-      const allMemberIds = selectedUnits.flatMap((u) => u.memberIds)
-      splits = equalSplit(amountNum, allMemberIds)
+      splits = selectedUnits.flatMap((u) => equalSplit(unitAmount(u), u.memberIds))
     } else if (splitType === 'equal') {
       splits = equalSplit(amountNum, participantIds)
     } else {
@@ -424,45 +460,60 @@ export function ExpenseForm({
 
           {splitType === 'group' ? (
             <div className="space-y-1.5">
-              {(() => {
-                const totalPeople = units
-                  .filter((u) => unitIds.includes(u.id))
-                  .reduce((sum, u) => sum + u.memberIds.length, 0)
-                const perPersonShare = totalPeople > 0 ? amountNum / totalPeople : 0
-                return units.map((u) => {
-                  const checked = unitIds.includes(u.id)
-                  const unitShare = checked ? perPersonShare * u.memberIds.length : 0
-                  return (
-                    <div
-                      key={u.id}
-                      className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-3 py-2"
-                    >
-                      <div className="flex items-center gap-2">
+              {units.map((u) => {
+                const checked = unitIds.includes(u.id)
+                const amountForUnit = unitAmount(u)
+                return (
+                  <div
+                    key={u.id}
+                    className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-3 py-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleUnit(u.id)}
+                        className="h-4 w-4 rounded accent-blue-600"
+                      />
+                      <span className="flex-1 text-sm text-neutral-800 dark:text-neutral-200">
+                        {u.label}
+                      </span>
+                      {checked && (
                         <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleUnit(u.id)}
-                          className="h-4 w-4 rounded accent-blue-600"
+                          type="number"
+                          inputMode="decimal"
+                          step="0.01"
+                          value={
+                            customUnitAmounts[u.id] ??
+                            (amountForUnit > 0 ? amountForUnit.toFixed(2) : '')
+                          }
+                          onChange={(e) =>
+                            setCustomUnitAmounts((prev) => ({
+                              ...prev,
+                              [u.id]: e.target.value,
+                            }))
+                          }
+                          placeholder="0,00"
+                          className="w-24 rounded border border-neutral-300 dark:border-neutral-700 bg-transparent px-2 py-1 text-sm text-right text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
-                        <span className="flex-1 text-sm text-neutral-800 dark:text-neutral-200">
-                          {u.label}
-                        </span>
-                        {checked && (
-                          <span className="text-sm text-neutral-500">
-                            {formatCurrency(unitShare)}
-                          </span>
-                        )}
-                      </div>
-                      {checked && u.memberIds.length > 1 && (
-                        <p className="mt-1 pl-6 text-xs text-neutral-400">
-                          {formatCurrency(perPersonShare)} por pessoa (
-                          {u.memberIds.length} pessoas)
-                        </p>
                       )}
                     </div>
-                  )
-                })
-              })()}
+                    {checked && u.memberIds.length > 1 && (
+                      <p className="mt-1 pl-6 text-xs text-neutral-400">
+                        {formatCurrency(amountForUnit / u.memberIds.length)} por
+                        pessoa ({u.memberIds.length} pessoas)
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
+              {Math.abs(groupDiff) >= 0.01 && (
+                <p className="text-xs text-red-600 mt-1">
+                  {groupDiff > 0
+                    ? `Faltam ${formatCurrency(groupDiff)} para completar o valor total.`
+                    : `Passou ${formatCurrency(Math.abs(groupDiff))} do valor total.`}
+                </p>
+              )}
             </div>
           ) : (
             <>
