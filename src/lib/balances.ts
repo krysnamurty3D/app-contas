@@ -29,18 +29,20 @@ export function computeBalances(
 
   for (const e of expenses) {
     const rate = e.exchangeRate || 1
-    // A settled expense (fully or partially) has already been paid back outside
-    // the app, so only its outstanding fraction still counts toward balances.
-    const settled = e.settledAmount ?? 0
-    const outstandingFraction =
-      e.amount > 0 ? Math.max(0, Math.min(1, 1 - settled / e.amount)) : 1
-    if (paid[e.paidBy] !== undefined) {
-      paid[e.paidBy] += e.amount * rate * outstandingFraction
-    }
+    // Each split can carry its own settledAmount: money a specific participant
+    // already advanced toward their own share, outside the app. Whatever's
+    // been advanced no longer counts as owed by them, nor as owed *to* the
+    // payer (since that person already got it back).
+    let totalSettled = 0
     for (const s of e.splits) {
+      const settled = Math.max(0, Math.min(s.settledAmount ?? 0, s.amount))
+      totalSettled += settled
       if (owes[s.participantId] !== undefined) {
-        owes[s.participantId] += s.amount * rate * outstandingFraction
+        owes[s.participantId] += (s.amount - settled) * rate
       }
+    }
+    if (paid[e.paidBy] !== undefined) {
+      paid[e.paidBy] += (e.amount - totalSettled) * rate
     }
   }
 
@@ -113,6 +115,29 @@ export function computeAccountBalances(
       remainingBase: round2(remaining * rate),
     }
   })
+}
+
+/** Scales a set of splits proportionally from their original total down to a
+ * smaller target amount (e.g. one installment of a parceled expense), keeping
+ * the same remainder-distribution rounding used by equalSplit so the result
+ * always sums to exactly targetAmount. */
+export function scaleSplits(
+  splits: { participantId: string; amount: number }[],
+  totalAmount: number,
+  targetAmount: number,
+) {
+  if (splits.length === 0 || totalAmount <= 0) {
+    return splits.map((s) => ({ participantId: s.participantId, amount: 0 }))
+  }
+  const base = splits.map(
+    (s) => Math.floor(((s.amount / totalAmount) * targetAmount) * 100) / 100,
+  )
+  const total = round2(base.reduce((sum, n) => sum + n, 0))
+  const remainderCents = Math.round(round2(targetAmount - total) * 100)
+  return splits.map((s, idx) => ({
+    participantId: s.participantId,
+    amount: round2(base[idx] + (idx < remainderCents ? 0.01 : 0)),
+  }))
 }
 
 export function equalSplit(amount: number, participantIds: string[]) {

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { CheckCircle2, Circle, Plus, Trash2, Pencil, Receipt, MoreHorizontal } from 'lucide-react'
 import { useTrips } from '../context/TripsContext'
-import { CATEGORIES, type Expense, type Trip } from '../types'
+import { CATEGORIES, type Expense, type ExpenseSplit, type Trip } from '../types'
 import { formatCurrency } from '../lib/currencies'
 import { ExpenseForm } from './ExpenseForm'
 import { SettleExpenseModal } from './SettleExpenseModal'
@@ -10,15 +10,22 @@ function nameOf(trip: Trip, id: string) {
   return trip.participants.find((p) => p.id === id)?.name ?? '—'
 }
 
+function settledAmountOf(e: Expense) {
+  return e.splits.reduce(
+    (sum, s) => sum + Math.min(s.settledAmount ?? 0, s.amount),
+    0,
+  )
+}
+
 export function ExpensesTab({ trip }: { trip: Trip }) {
   const { addExpense, updateExpense, deleteExpense } = useTrips()
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Expense | undefined>(undefined)
   const [settling, setSettling] = useState<Expense | undefined>(undefined)
 
-  const handleSettle = (settledAmount: number) => {
+  const handleSettle = (splits: ExpenseSplit[]) => {
     if (!settling) return
-    updateExpense(trip.id, { ...settling, settledAmount })
+    updateExpense(trip.id, { ...settling, splits })
   }
 
   const sorted = useMemo(
@@ -27,11 +34,13 @@ export function ExpensesTab({ trip }: { trip: Trip }) {
     [trip.expenses],
   )
 
-  const handleSave = (data: Omit<Expense, 'id'> & { id?: string }) => {
-    if (data.id) {
-      updateExpense(trip.id, data as Expense)
-    } else {
-      addExpense(trip.id, data)
+  const handleSave = (items: (Omit<Expense, 'id'> & { id?: string })[]) => {
+    for (const data of items) {
+      if (data.id) {
+        updateExpense(trip.id, data as Expense)
+      } else {
+        addExpense(trip.id, data)
+      }
     }
   }
 
@@ -90,17 +99,17 @@ export function ExpensesTab({ trip }: { trip: Trip }) {
                         <p className="font-medium text-neutral-900 dark:text-neutral-100">
                           {e.description}
                         </p>
-                        {e.settledAmount != null && e.settledAmount > 0 && (
+                        {settledAmountOf(e) > 0 && (
                           <span
                             className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
-                              e.settledAmount >= e.amount
+                              settledAmountOf(e) >= e.amount
                                 ? 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300'
                                 : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
                             }`}
                           >
-                            {e.settledAmount >= e.amount
+                            {settledAmountOf(e) >= e.amount
                               ? 'Paga'
-                              : `Paga parcialmente (${formatCurrency(e.settledAmount)})`}
+                              : `Paga parcialmente (${formatCurrency(settledAmountOf(e))})`}
                           </span>
                         )}
                       </div>
@@ -140,12 +149,12 @@ export function ExpensesTab({ trip }: { trip: Trip }) {
                   <button
                     onClick={() => setSettling(e)}
                     className={`inline-flex items-center gap-1 text-xs ${
-                      e.settledAmount != null && e.settledAmount >= e.amount
+                      settledAmountOf(e) >= e.amount
                         ? 'text-green-600'
                         : 'text-neutral-500 hover:text-green-600'
                     }`}
                   >
-                    {e.settledAmount != null && e.settledAmount >= e.amount ? (
+                    {settledAmountOf(e) >= e.amount ? (
                       <CheckCircle2 size={13} />
                     ) : (
                       <Circle size={13} />
@@ -187,6 +196,7 @@ export function ExpensesTab({ trip }: { trip: Trip }) {
       {settling && (
         <SettleExpenseModal
           expense={settling}
+          nameOf={(id) => nameOf(trip, id)}
           onClose={() => setSettling(undefined)}
           onSave={handleSettle}
         />

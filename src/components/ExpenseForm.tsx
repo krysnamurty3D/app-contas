@@ -2,11 +2,17 @@ import { useMemo, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { Modal } from './ui/Modal'
 import { CATEGORIES, type Category, type Expense, type Trip } from '../types'
-import { equalSplit } from '../lib/balances'
+import { equalSplit, scaleSplits } from '../lib/balances'
 import { quickCurrencies, formatCurrency } from '../lib/currencies'
 import { fetchExchangeRate } from '../lib/exchangeRate'
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
+
+function addMonthsIso(iso: string, months: number) {
+  const d = new Date(iso + 'T00:00:00')
+  d.setMonth(d.getMonth() + months)
+  return d.toISOString().slice(0, 10)
+}
 
 export function ExpenseForm({
   trip,
@@ -17,7 +23,7 @@ export function ExpenseForm({
   trip: Trip
   expense?: Expense
   onClose: () => void
-  onSave: (expense: Omit<Expense, 'id'> & { id?: string }) => void
+  onSave: (expenses: (Omit<Expense, 'id'> & { id?: string })[]) => void
 }) {
   const isEdit = !!expense
   const [description, setDescription] = useState(expense?.description ?? '')
@@ -80,6 +86,9 @@ export function ExpenseForm({
   }
   const [fetchingRate, setFetchingRate] = useState(false)
   const [rateError, setRateError] = useState('')
+  const [installmentsEnabled, setInstallmentsEnabled] = useState(false)
+  const [installmentsCount, setInstallmentsCount] = useState('2')
+  const installmentsNum = Math.max(2, parseInt(installmentsCount, 10) || 2)
 
   const handleFetchRate = async () => {
     setFetchingRate(true)
@@ -140,19 +149,36 @@ export function ExpenseForm({
       }))
     }
 
-    onSave({
-      id: expense?.id,
+    const base = {
       description: description.trim(),
       category,
-      amount: amountNum,
       currency: currency.trim().toUpperCase() || trip.baseCurrency,
       exchangeRate: isForeign ? parseFloat(exchangeRate) || 1 : 1,
-      date,
       paidBy,
       paymentMethodId: paymentMethodId || undefined,
       splitType,
-      splits,
-    })
+    }
+
+    if (!isEdit && installmentsEnabled && installmentsNum > 1) {
+      // Cria uma despesa separada por parcela, cada uma um mês depois da
+      // anterior, com o valor e as divisões escaladas proporcionalmente.
+      const installmentAmounts = equalSplit(
+        amountNum,
+        Array.from({ length: installmentsNum }, (_, i) => String(i)),
+      ).map((s) => s.amount)
+
+      onSave(
+        installmentAmounts.map((instAmount, i) => ({
+          ...base,
+          description: `${base.description} (${i + 1}/${installmentsNum})`,
+          amount: instAmount,
+          date: addMonthsIso(date, i),
+          splits: scaleSplits(splits, amountNum, instAmount),
+        })),
+      )
+    } else {
+      onSave([{ id: expense?.id, ...base, amount: amountNum, date, splits }])
+    }
     onClose()
   }
 
@@ -290,6 +316,41 @@ export function ExpenseForm({
             className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-transparent px-3 py-2.5 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
+
+        {!isEdit && (
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              <input
+                type="checkbox"
+                checked={installmentsEnabled}
+                onChange={(e) => setInstallmentsEnabled(e.target.checked)}
+                className="h-4 w-4 rounded accent-blue-600"
+              />
+              Parcelar essa despesa
+            </label>
+            {installmentsEnabled && (
+              <div className="mt-2">
+                <label className="block text-xs text-neutral-500 mb-1">
+                  Número de parcelas
+                </label>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min="2"
+                  step="1"
+                  value={installmentsCount}
+                  onChange={(e) => setInstallmentsCount(e.target.value)}
+                  className="w-24 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-transparent px-3 py-2.5 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-xs text-neutral-500 mt-1">
+                  Cria {installmentsNum} despesas separadas, uma por mês a
+                  partir da data acima, cada uma dividida entre as mesmas
+                  pessoas.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         <div>
           <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">

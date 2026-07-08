@@ -62,6 +62,8 @@ export interface ExpenseSplit {
   participantId: string
   /** Amount owed by this participant, in the expense's original currency */
   amount: number
+  /** How much of this participant's own share they've already advanced/paid back outside the app. */
+  settledAmount?: number
 }
 
 export interface Expense {
@@ -78,8 +80,6 @@ export interface Expense {
   paymentMethodId?: string
   splitType: 'equal' | 'custom' | 'group'
   splits: ExpenseSplit[]
-  /** Amount already settled/paid back outside the app, in the expense's own currency. Reduces its weight in balances proportionally. */
-  settledAmount?: number
 }
 
 export interface Trip {

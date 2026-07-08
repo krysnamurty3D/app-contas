@@ -3,6 +3,7 @@ import {
   computeAccountBalances,
   computeBalances,
   equalSplit,
+  scaleSplits,
   simplifyDebts,
 } from './balances'
 import type { Account, Expense, Participant } from '../types'
@@ -90,10 +91,9 @@ describe('computeBalances', () => {
       expense({
         paidBy: 'a',
         amount: 100,
-        settledAmount: 100,
         splits: [
-          { participantId: 'a', amount: 50 },
-          { participantId: 'b', amount: 50 },
+          { participantId: 'a', amount: 50, settledAmount: 50 },
+          { participantId: 'b', amount: 50, settledAmount: 50 },
         ],
       }),
     ]
@@ -109,10 +109,9 @@ describe('computeBalances', () => {
       expense({
         paidBy: 'a',
         amount: 100,
-        settledAmount: 40,
         splits: [
-          { participantId: 'a', amount: 50 },
-          { participantId: 'b', amount: 50 },
+          { participantId: 'a', amount: 50, settledAmount: 20 },
+          { participantId: 'b', amount: 50, settledAmount: 20 },
         ],
       }),
     ]
@@ -121,6 +120,32 @@ describe('computeBalances', () => {
     const balances = computeBalances(participants, expenses)
     expect(balances.find((b) => b.participantId === 'a')?.net).toBe(30)
     expect(balances.find((b) => b.participantId === 'b')?.net).toBe(-30)
+  })
+
+  it('distributes the remaining debt considering who already advanced part of their own share', () => {
+    // A shared expense of 120 paid by 'a', split equally 4 ways (30 each).
+    // 'b' already advanced 15 of their own share, 'c' already advanced 10.
+    // 'a' and 'd' haven't advanced anything.
+    const participants = [participant('a'), participant('b'), participant('c'), participant('d')]
+    const expenses = [
+      expense({
+        paidBy: 'a',
+        amount: 120,
+        splits: [
+          { participantId: 'a', amount: 30 },
+          { participantId: 'b', amount: 30, settledAmount: 15 },
+          { participantId: 'c', amount: 30, settledAmount: 10 },
+          { participantId: 'd', amount: 30 },
+        ],
+      }),
+    ]
+
+    const balances = computeBalances(participants, expenses)
+    // a fronted 120 but already got 15+10=25 back directly from b and c.
+    expect(balances.find((b) => b.participantId === 'a')?.net).toBe(65)
+    expect(balances.find((b) => b.participantId === 'b')?.net).toBe(-15)
+    expect(balances.find((b) => b.participantId === 'c')?.net).toBe(-20)
+    expect(balances.find((b) => b.participantId === 'd')?.net).toBe(-30)
   })
 
   it('ignores splits for participants that no longer exist', () => {
@@ -274,5 +299,37 @@ describe('equalSplit', () => {
 
   it('returns an empty array when there are no participants', () => {
     expect(equalSplit(100, [])).toEqual([])
+  })
+})
+
+describe('scaleSplits', () => {
+  it('scales custom splits down to a smaller installment amount, summing exactly', () => {
+    const splits = [
+      { participantId: 'a', amount: 20 },
+      { participantId: 'b', amount: 80 },
+    ]
+    // Original total 100, one installment is 33.34 (1/3 of 100.02-ish rounding case)
+    const result = scaleSplits(splits, 100, 40)
+    const total = result.reduce((sum, s) => sum + s.amount, 0)
+    expect(total).toBeCloseTo(40, 2)
+    // proportional: a keeps 20%, b keeps 80%
+    expect(result.find((s) => s.participantId === 'a')?.amount).toBeCloseTo(8, 2)
+    expect(result.find((s) => s.participantId === 'b')?.amount).toBeCloseTo(32, 2)
+  })
+
+  it('distributes rounding remainder cents so the total matches exactly', () => {
+    const splits = [
+      { participantId: 'a', amount: 33.34 },
+      { participantId: 'b', amount: 33.33 },
+      { participantId: 'c', amount: 33.33 },
+    ]
+    const result = scaleSplits(splits, 100, 33.34)
+    const total = result.reduce((sum, s) => sum + s.amount, 0)
+    expect(total).toBeCloseTo(33.34, 2)
+  })
+
+  it('returns zero amounts when totalAmount is zero', () => {
+    const splits = [{ participantId: 'a', amount: 0 }]
+    expect(scaleSplits(splits, 0, 50)).toEqual([{ participantId: 'a', amount: 0 }])
   })
 })
