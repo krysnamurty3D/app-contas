@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { ArrowRight, ArrowRightLeft, HandCoins, Wallet } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { ArrowRight, ArrowRightLeft, ChevronDown, HandCoins, Wallet } from 'lucide-react'
 import { computeBalances, simplifyDebts } from '../lib/balances'
 import { formatCurrency } from '../lib/currencies'
 import type { Trip } from '../types'
@@ -12,7 +12,34 @@ function groupNameOf(trip: Trip, id: string) {
   return trip.groups.find((g) => g.id === id)?.name ?? '—'
 }
 
+/** Net amount each of this group's expenses contributes to its balance
+ * (positive = group is owed for it, negative = group owes for it). */
+function expensesForGroup(trip: Trip, memberIds: string[]) {
+  return trip.expenses
+    .map((e) => {
+      const rate = e.exchangeRate || 1
+      const settled = e.settledAmount ?? 0
+      const outstandingFraction =
+        e.amount > 0 ? Math.max(0, Math.min(1, 1 - settled / e.amount)) : 1
+      const paidByGroup = memberIds.includes(e.paidBy)
+        ? e.amount * rate * outstandingFraction
+        : 0
+      const owedByGroup = e.splits
+        .filter((s) => memberIds.includes(s.participantId))
+        .reduce((sum, s) => sum + s.amount * rate * outstandingFraction, 0)
+      return {
+        id: e.id,
+        description: e.description,
+        date: e.date,
+        net: paidByGroup - owedByGroup,
+      }
+    })
+    .filter((e) => Math.abs(e.net) > 0.005)
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+}
+
 export function ReceivablesTab({ trip }: { trip: Trip }) {
+  const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null)
   const balances = useMemo(
     () => computeBalances(trip.participants, trip.expenses),
     [trip.participants, trip.expenses],
@@ -87,30 +114,81 @@ export function ReceivablesTab({ trip }: { trip: Trip }) {
             </h2>
           </div>
           <ul className="space-y-2">
-            {groupTotals.map((g) => (
-              <li
-                key={g.id}
-                className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4"
-              >
-                <p className="font-medium text-neutral-900 dark:text-neutral-100 mb-2">
-                  {g.name}
-                </p>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <p className="text-xs text-neutral-500">A receber</p>
-                    <p className="font-semibold text-green-600">
-                      {formatCurrency(g.toReceive)} {trip.baseCurrency}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-neutral-500">A pagar</p>
-                    <p className="font-semibold text-red-600">
-                      {formatCurrency(g.toPay)} {trip.baseCurrency}
-                    </p>
-                  </div>
-                </div>
-              </li>
-            ))}
+            {groupTotals.map((g) => {
+              const isExpanded = expandedGroupId === g.id
+              const memberIds = trip.participants
+                .filter((p) => p.groupId === g.id)
+                .map((p) => p.id)
+              const groupExpenses = isExpanded
+                ? expensesForGroup(trip, memberIds)
+                : []
+              return (
+                <li
+                  key={g.id}
+                  className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden"
+                >
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExpandedGroupId(isExpanded ? null : g.id)
+                    }
+                    className="w-full text-left p-4"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="font-medium text-neutral-900 dark:text-neutral-100">
+                        {g.name}
+                      </p>
+                      <ChevronDown
+                        size={16}
+                        className={`text-neutral-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-xs text-neutral-500">A receber</p>
+                        <p className="font-semibold text-green-600">
+                          {formatCurrency(g.toReceive)} {trip.baseCurrency}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-neutral-500">A pagar</p>
+                        <p className="font-semibold text-red-600">
+                          {formatCurrency(g.toPay)} {trip.baseCurrency}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                  {isExpanded && (
+                    <div className="border-t border-neutral-100 dark:border-neutral-800 px-4 py-3">
+                      {groupExpenses.length === 0 ? (
+                        <p className="text-xs text-neutral-500">
+                          Nenhuma despesa envolvendo este subgrupo.
+                        </p>
+                      ) : (
+                        <ul className="space-y-1.5">
+                          {groupExpenses.map((e) => (
+                            <li
+                              key={e.id}
+                              className="flex items-center gap-2 text-sm"
+                            >
+                              <span className="text-neutral-700 dark:text-neutral-300 shrink-0">
+                                {e.description}
+                              </span>
+                              <span className="flex-1 border-b border-dotted border-neutral-300 dark:border-neutral-700" />
+                              <span
+                                className={`font-medium shrink-0 ${e.net > 0 ? 'text-green-600' : 'text-red-600'}`}
+                              >
+                                {formatCurrency(Math.abs(e.net))} {trip.baseCurrency}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </li>
+              )
+            })}
           </ul>
         </div>
       )}
