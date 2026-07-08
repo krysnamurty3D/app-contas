@@ -135,11 +135,29 @@ export function ExpenseForm({
   )
   const customDiff = Math.round((amountNum - customTotal) * 100) / 100
 
-  const totalPeopleSelected = units
-    .filter((u) => unitIds.includes(u.id))
-    .reduce((sum, u) => sum + u.memberIds.length, 0)
+  const isUnitEdited = (u: { id: string }) => {
+    const raw = customUnitAmounts[u.id]
+    return raw !== undefined && raw !== ''
+  }
+
+  // Manually edited subgroups keep whatever the user typed. The remaining
+  // amount (total minus what's already spoken for) is spread equally per
+  // person across the subgroups still on "auto", so editing one subgroup up
+  // automatically shrinks the others instead of just flagging a mismatch.
+  const selectedUnits = units.filter((u) => unitIds.includes(u.id))
+  const editedUnits = selectedUnits.filter(isUnitEdited)
+  const autoUnits = selectedUnits.filter((u) => !isUnitEdited(u))
+  const editedTotal = editedUnits.reduce(
+    (sum, u) => sum + (parseFloat(customUnitAmounts[u.id]) || 0),
+    0,
+  )
+  const autoPeopleCount = autoUnits.reduce(
+    (sum, u) => sum + u.memberIds.length,
+    0,
+  )
+  const remainingForAuto = amountNum - editedTotal
   const autoPerPersonShare =
-    totalPeopleSelected > 0 ? amountNum / totalPeopleSelected : 0
+    autoPeopleCount > 0 ? remainingForAuto / autoPeopleCount : 0
 
   const unitAmount = (u: { id: string; memberIds: string[] }) => {
     if (!unitIds.includes(u.id)) return 0
@@ -148,9 +166,7 @@ export function ExpenseForm({
     return autoPerPersonShare * u.memberIds.length
   }
 
-  const groupTotal = units
-    .filter((u) => unitIds.includes(u.id))
-    .reduce((sum, u) => sum + unitAmount(u), 0)
+  const groupTotal = selectedUnits.reduce((sum, u) => sum + unitAmount(u), 0)
   const groupDiff = Math.round((amountNum - groupTotal) * 100) / 100
 
   const toggleParticipant = (id: string) => {
@@ -174,7 +190,6 @@ export function ExpenseForm({
     if (splitType === 'group') {
       // Cada subgrupo tem seu próprio total (automático ou editado
       // manualmente), dividido igualmente entre os membros daquele subgrupo.
-      const selectedUnits = units.filter((u) => unitIds.includes(u.id))
       splits = selectedUnits.flatMap((u) => equalSplit(unitAmount(u), u.memberIds))
     } else if (splitType === 'equal') {
       splits = equalSplit(amountNum, participantIds)
