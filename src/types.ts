@@ -40,6 +40,17 @@ export interface Group {
   name: string
 }
 
+/** Records that money already changed hands directly between two subgroups
+ * (usually one person settling on behalf of their whole subgroup), so it can
+ * be netted out of the "Compensação entre subgrupos" suggestion. */
+export interface GroupSettlement {
+  id: string
+  fromGroupId: string
+  toGroupId: string
+  amount: number
+  date: string
+}
+
 export type AccountType = 'dinheiro' | 'cartao' | 'outro'
 
 export const ACCOUNT_TYPES: { id: AccountType; label: string; icon: LucideIcon }[] = [
@@ -88,6 +99,7 @@ export interface Trip {
   baseCurrency: string
   participants: Participant[]
   groups: Group[]
+  groupSettlements: GroupSettlement[]
   accounts: Account[]
   expenses: Expense[]
   createdAt: string

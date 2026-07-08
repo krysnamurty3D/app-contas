@@ -1,5 +1,15 @@
 import { useMemo, useState } from 'react'
-import { ArrowRight, ArrowRightLeft, ChevronDown, HandCoins, Wallet } from 'lucide-react'
+import {
+  ArrowRight,
+  ArrowRightLeft,
+  Check,
+  ChevronDown,
+  HandCoins,
+  Trash2,
+  Wallet,
+  X,
+} from 'lucide-react'
+import { useTrips } from '../context/TripsContext'
 import { computeBalances, simplifyDebts } from '../lib/balances'
 import { formatCurrency } from '../lib/currencies'
 import type { Trip } from '../types'
@@ -43,7 +53,10 @@ function expensesForGroup(trip: Trip, memberIds: string[]) {
 }
 
 export function ReceivablesTab({ trip }: { trip: Trip }) {
+  const { addGroupSettlement, removeGroupSettlement } = useTrips()
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null)
+  const [settlingPair, setSettlingPair] = useState<{ from: string; to: string; amount: number } | null>(null)
+  const [settleAmount, setSettleAmount] = useState('')
   const balances = useMemo(
     () => computeBalances(trip.participants, trip.expenses),
     [trip.participants, trip.expenses],
@@ -90,14 +103,43 @@ export function ReceivablesTab({ trip }: { trip: Trip }) {
 
   const groupSettlements = useMemo(() => {
     if (groupTotals.length < 2) return []
-    const pseudoBalances = groupTotals.map((g) => ({
-      participantId: g.id,
-      net: g.toReceive - g.toPay,
-      paid: 0,
-      owes: 0,
-    }))
+    const pseudoBalances = groupTotals.map((g) => {
+      // Money already settled directly between subgroups (usually one person
+      // paying on behalf of their whole subgroup) is netted out here, same way
+      // Expense/ExpenseSplit settledAmount works for individual balances.
+      const alreadyPaidOut = trip.groupSettlements
+        .filter((s) => s.fromGroupId === g.id)
+        .reduce((sum, s) => sum + s.amount, 0)
+      const alreadyReceived = trip.groupSettlements
+        .filter((s) => s.toGroupId === g.id)
+        .reduce((sum, s) => sum + s.amount, 0)
+      return {
+        participantId: g.id,
+        net: g.toReceive - g.toPay + alreadyPaidOut - alreadyReceived,
+        paid: 0,
+        owes: 0,
+      }
+    })
     return simplifyDebts(pseudoBalances)
-  }, [groupTotals])
+  }, [groupTotals, trip.groupSettlements])
+
+  const openSettle = (from: string, to: string, amount: number) => {
+    setSettlingPair({ from, to, amount })
+    setSettleAmount(String(amount))
+  }
+
+  const confirmSettle = () => {
+    if (!settlingPair) return
+    const amount = parseFloat(settleAmount) || 0
+    if (amount <= 0) return
+    addGroupSettlement(trip.id, {
+      fromGroupId: settlingPair.from,
+      toGroupId: settlingPair.to,
+      amount,
+      date: new Date().toISOString().slice(0, 10),
+    })
+    setSettlingPair(null)
+  }
 
   if (trip.participants.length === 0) {
     return (
@@ -211,22 +253,96 @@ export function ReceivablesTab({ trip }: { trip: Trip }) {
             </p>
           ) : (
             <ul className="space-y-2">
-              {groupSettlements.map((s, i) => (
-                <li
-                  key={i}
-                  className="flex items-center justify-between rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-4 py-3"
-                >
-                  <div className="flex items-center gap-2 text-sm text-neutral-800 dark:text-neutral-200">
-                    <span className="font-medium">{groupNameOf(trip, s.from)}</span>
-                    <ArrowRight size={14} className="text-neutral-400" />
-                    <span className="font-medium">{groupNameOf(trip, s.to)}</span>
-                  </div>
-                  <span className="font-semibold text-neutral-900 dark:text-neutral-100">
-                    {formatCurrency(s.amount)} {trip.baseCurrency}
-                  </span>
-                </li>
-              ))}
+              {groupSettlements.map((s, i) => {
+                const isSettling =
+                  settlingPair?.from === s.from && settlingPair?.to === s.to
+                return (
+                  <li
+                    key={i}
+                    className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-4 py-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm text-neutral-800 dark:text-neutral-200">
+                        <span className="font-medium">{groupNameOf(trip, s.from)}</span>
+                        <ArrowRight size={14} className="text-neutral-400" />
+                        <span className="font-medium">{groupNameOf(trip, s.to)}</span>
+                      </div>
+                      <span className="font-semibold text-neutral-900 dark:text-neutral-100">
+                        {formatCurrency(s.amount)} {trip.baseCurrency}
+                      </span>
+                    </div>
+                    {isSettling ? (
+                      <div className="mt-2 flex items-center gap-2 border-t border-neutral-100 dark:border-neutral-800 pt-2">
+                        <input
+                          autoFocus
+                          type="number"
+                          inputMode="decimal"
+                          min="0"
+                          step="0.01"
+                          value={settleAmount}
+                          onChange={(e) => setSettleAmount(e.target.value)}
+                          placeholder="0,00"
+                          className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-transparent px-3 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={confirmSettle}
+                          className="shrink-0 rounded-lg bg-blue-600 p-2 text-white hover:bg-blue-700"
+                          aria-label="Confirmar"
+                        >
+                          <Check size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSettlingPair(null)}
+                          className="shrink-0 rounded-lg border border-neutral-300 dark:border-neutral-700 p-2 text-neutral-500 hover:text-red-600"
+                          aria-label="Cancelar"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => openSettle(s.from, s.to, s.amount)}
+                        className="mt-2 flex items-center gap-1 border-t border-neutral-100 dark:border-neutral-800 pt-2 text-xs text-neutral-500 hover:text-green-600"
+                      >
+                        <Check size={13} /> Marcar como paga
+                      </button>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
+          )}
+
+          {trip.groupSettlements.length > 0 && (
+            <div className="mt-3">
+              <p className="text-xs font-medium text-neutral-500 mb-1.5">
+                Acertos já registrados
+              </p>
+              <ul className="space-y-1.5">
+                {trip.groupSettlements.map((s) => (
+                  <li
+                    key={s.id}
+                    className="flex items-center justify-between rounded-lg bg-neutral-50 dark:bg-neutral-900 px-3 py-2 text-xs text-neutral-600 dark:text-neutral-400"
+                  >
+                    <span>
+                      {groupNameOf(trip, s.fromGroupId)} → {groupNameOf(trip, s.toGroupId)}:{' '}
+                      {formatCurrency(s.amount)} {trip.baseCurrency}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeGroupSettlement(trip.id, s.id)}
+                      className="shrink-0 text-neutral-400 hover:text-red-600"
+                      aria-label="Remover acerto"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
       )}

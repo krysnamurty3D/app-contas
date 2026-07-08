@@ -14,7 +14,7 @@ import { useLocalStorage } from '../lib/storage'
 import { db } from '../lib/firebase'
 import { useAuth } from './AuthContext'
 import { TripsContext, newId, type TripsContextValue } from './TripsContext'
-import type { Account, Expense, Participant, Trip } from '../types'
+import type { Account, Expense, GroupSettlement, Participant, Trip } from '../types'
 
 /** Firestore-backed trips provider, used only once the user is signed in and Firebase is configured. */
 export function CloudTripsProvider({ children }: { children: ReactNode }) {
@@ -36,7 +36,12 @@ export function CloudTripsProvider({ children }: { children: ReactNode }) {
       setTrips(
         snapshot.docs.map((d) => {
           const data = d.data() as Partial<Trip>
-          return { id: d.id, ...data, groups: data.groups ?? [] } as Trip
+          return {
+            id: d.id,
+            ...data,
+            groups: data.groups ?? [],
+            groupSettlements: data.groupSettlements ?? [],
+          } as Trip
         }),
       )
     })
@@ -69,6 +74,7 @@ export function CloudTripsProvider({ children }: { children: ReactNode }) {
         baseCurrency,
         participants: [],
         groups: [],
+        groupSettlements: [],
         accounts: [],
         expenses: [],
         createdAt: new Date().toISOString(),
@@ -166,6 +172,9 @@ export function CloudTripsProvider({ children }: { children: ReactNode }) {
         participants: trip.participants.map((p) =>
           p.groupId === groupId ? { ...p, groupId: undefined } : p,
         ),
+        groupSettlements: trip.groupSettlements.filter(
+          (s) => s.fromGroupId !== groupId && s.toGroupId !== groupId,
+        ),
       }).catch(reportError)
     },
     setParticipantGroup: (tripId, participantId, groupId) => {
@@ -174,6 +183,23 @@ export function CloudTripsProvider({ children }: { children: ReactNode }) {
       updateDoc(tripRef(tripId), {
         participants: trip.participants.map((p) =>
           p.id === participantId ? { ...p, groupId: groupId ?? undefined } : p,
+        ),
+      }).catch(reportError)
+    },
+    addGroupSettlement: (tripId, settlement) => {
+      const trip = trips.find((t) => t.id === tripId)
+      if (!trip) return
+      const newSettlement: GroupSettlement = { ...settlement, id: newId() }
+      updateDoc(tripRef(tripId), {
+        groupSettlements: [...trip.groupSettlements, newSettlement],
+      }).catch(reportError)
+    },
+    removeGroupSettlement: (tripId, settlementId) => {
+      const trip = trips.find((t) => t.id === tripId)
+      if (!trip) return
+      updateDoc(tripRef(tripId), {
+        groupSettlements: trip.groupSettlements.filter(
+          (s) => s.id !== settlementId,
         ),
       }).catch(reportError)
     },
@@ -187,6 +213,7 @@ export function CloudTripsProvider({ children }: { children: ReactNode }) {
           ...data,
           accounts: data.accounts ?? [],
           groups: data.groups ?? [],
+          groupSettlements: data.groupSettlements ?? [],
           memberEmails: email ? [email] : [],
         }).catch(reportError)
       }
