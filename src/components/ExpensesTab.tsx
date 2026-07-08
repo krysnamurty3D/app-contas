@@ -3,6 +3,7 @@ import * as Icons from 'lucide-react'
 import { Plus, Trash2, Pencil, Receipt } from 'lucide-react'
 import { useTrips } from '../context/TripsContext'
 import { CATEGORIES, type Expense, type Trip } from '../types'
+import { formatCurrency } from '../lib/currencies'
 import { ExpenseForm } from './ExpenseForm'
 
 function CategoryIcon({ icon, size = 16 }: { icon: string; size?: number }) {
@@ -108,11 +109,11 @@ export function ExpensesTab({ trip }: { trip: Trip }) {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="font-semibold text-neutral-900 dark:text-neutral-100">
-                      {e.amount.toFixed(2)} {e.currency}
+                      {formatCurrency(e.amount)} {e.currency}
                     </p>
                     {e.currency !== trip.baseCurrency && (
                       <p className="text-xs text-neutral-500">
-                        ≈ {(e.amount * e.exchangeRate).toFixed(2)}{' '}
+                        ≈ {formatCurrency(e.amount * e.exchangeRate)}{' '}
                         {trip.baseCurrency}
                       </p>
                     )}

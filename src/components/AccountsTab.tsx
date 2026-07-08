@@ -4,6 +4,7 @@ import { Plus, Trash2, Pencil, Wallet } from 'lucide-react'
 import { useTrips } from '../context/TripsContext'
 import { ACCOUNT_TYPES, type Account, type Trip } from '../types'
 import { computeAccountBalances } from '../lib/balances'
+import { formatCurrency } from '../lib/currencies'
 import { AccountForm } from './AccountForm'
 
 function TypeIcon({ icon, size = 18 }: { icon: string; size?: number }) {
@@ -70,7 +71,7 @@ export function AccountsTab({ trip }: { trip: Trip }) {
           <div className="rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-700 p-5 text-white">
             <p className="text-emerald-100 text-sm">Saldo total restante</p>
             <p className="text-3xl font-bold mt-1">
-              {totalRemainingBase.toFixed(2)} {trip.baseCurrency}
+              {formatCurrency(totalRemainingBase)} {trip.baseCurrency}
             </p>
           </div>
 
@@ -95,7 +96,7 @@ export function AccountsTab({ trip }: { trip: Trip }) {
                         </p>
                         <p className="text-xs text-neutral-500">
                           {typeInfo?.label} · saldo inicial{' '}
-                          {a.initialBalance.toFixed(2)} {a.currency}
+                          {formatCurrency(a.initialBalance)} {a.currency}
                         </p>
                       </div>
                     </div>
@@ -103,11 +104,11 @@ export function AccountsTab({ trip }: { trip: Trip }) {
                       <p
                         className={`font-semibold ${b.remaining < 0 ? 'text-red-600' : 'text-neutral-900 dark:text-neutral-100'}`}
                       >
-                        {b.remaining.toFixed(2)} {a.currency}
+                        {formatCurrency(b.remaining)} {a.currency}
                       </p>
                       {isForeign && (
                         <p className="text-xs text-neutral-500">
-                          ≈ {b.remainingBase.toFixed(2)} {trip.baseCurrency}
+                          ≈ {formatCurrency(b.remainingBase)} {trip.baseCurrency}
                         </p>
                       )}
                     </div>

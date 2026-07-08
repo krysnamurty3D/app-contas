@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Modal } from './ui/Modal'
 import { CATEGORIES, type Category, type Expense, type Trip } from '../types'
 import { equalSplit } from '../lib/balances'
-import { quickCurrencies } from '../lib/currencies'
+import { quickCurrencies, formatCurrency } from '../lib/currencies'
 import * as Icons from 'lucide-react'
 
 function CategoryIcon({ icon, size = 16 }: { icon: string; size?: number }) {
@@ -211,7 +211,7 @@ export function ExpenseForm({
             />
             {amountNum > 0 && (
               <p className="text-xs text-neutral-500 mt-1">
-                ≈ {(amountNum * (parseFloat(exchangeRate) || 0)).toFixed(2)}{' '}
+                ≈ {formatCurrency(amountNum * (parseFloat(exchangeRate) || 0))}{' '}
                 {trip.baseCurrency}
               </p>
             )}
@@ -325,7 +325,7 @@ export function ExpenseForm({
                   )}
                   {splitType === 'equal' && checked && participantIds.length > 0 && (
                     <span className="text-sm text-neutral-500">
-                      {(amountNum / participantIds.length).toFixed(2)}
+                      {formatCurrency(amountNum / participantIds.length)}
                     </span>
                   )}
                 </div>
@@ -335,8 +335,8 @@ export function ExpenseForm({
           {splitType === 'custom' && Math.abs(customDiff) >= 0.01 && (
             <p className="text-xs text-red-600 mt-1">
               {customDiff > 0
-                ? `Faltam ${customDiff.toFixed(2)} para completar o valor total.`
-                : `Passou ${Math.abs(customDiff).toFixed(2)} do valor total.`}
+                ? `Faltam ${formatCurrency(customDiff)} para completar o valor total.`
+                : `Passou ${formatCurrency(Math.abs(customDiff))} do valor total.`}
             </p>
           )}
         </div>
