@@ -76,7 +76,7 @@ export interface Expense {
   paidBy: string
   /** Account (cash/card) the money came from, if tracked */
   paymentMethodId?: string
-  splitType: 'equal' | 'custom'
+  splitType: 'equal' | 'custom' | 'group'
   splits: ExpenseSplit[]
 }
 

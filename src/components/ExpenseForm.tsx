@@ -40,7 +40,7 @@ export function ExpenseForm({
     expense?.splits.map((s) => s.participantId) ??
       trip.participants.map((p) => p.id),
   )
-  const [splitType, setSplitType] = useState<'equal' | 'custom'>(
+  const [splitType, setSplitType] = useState<'equal' | 'custom' | 'group'>(
     expense?.splitType ?? 'equal',
   )
   const [customAmounts, setCustomAmounts] = useState<Record<string, string>>(
@@ -53,6 +53,31 @@ export function ExpenseForm({
       return {}
     },
   )
+
+  // "Units" for the subgroup split mode: each subgroup with members, plus each
+  // ungrouped participant treated as their own unit (so nobody is left out).
+  const units = useMemo(() => {
+    const groupUnits = trip.groups
+      .map((g) => ({
+        id: g.id,
+        label: g.name,
+        memberIds: trip.participants
+          .filter((p) => p.groupId === g.id)
+          .map((p) => p.id),
+      }))
+      .filter((u) => u.memberIds.length > 0)
+    const soloUnits = trip.participants
+      .filter((p) => !p.groupId)
+      .map((p) => ({ id: `solo:${p.id}`, label: p.name, memberIds: [p.id] }))
+    return [...groupUnits, ...soloUnits]
+  }, [trip.groups, trip.participants])
+
+  const [unitIds, setUnitIds] = useState<string[]>(units.map((u) => u.id))
+  const toggleUnit = (id: string) => {
+    setUnitIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    )
+  }
   const [fetchingRate, setFetchingRate] = useState(false)
   const [rateError, setRateError] = useState('')
 
@@ -92,18 +117,32 @@ export function ExpenseForm({
     description.trim() &&
     amountNum > 0 &&
     paidBy &&
-    participantIds.length > 0 &&
-    (splitType === 'equal' || Math.abs(customDiff) < 0.01)
+    (splitType === 'group'
+      ? unitIds.length > 0
+      : participantIds.length > 0 &&
+        (splitType === 'equal' || Math.abs(customDiff) < 0.01))
 
   const handleSave = () => {
     if (!canSave) return
-    const splits =
-      splitType === 'equal'
-        ? equalSplit(amountNum, participantIds)
-        : participantIds.map((id) => ({
-            participantId: id,
-            amount: parseFloat(customAmounts[id]) || 0,
-          }))
+    let splits
+    if (splitType === 'group') {
+      const selectedUnits = units.filter((u) => unitIds.includes(u.id))
+      const perUnit = equalSplit(
+        amountNum,
+        selectedUnits.map((u) => u.id),
+      )
+      splits = selectedUnits.flatMap((u) => {
+        const unitAmount = perUnit.find((s) => s.participantId === u.id)!.amount
+        return equalSplit(unitAmount, u.memberIds)
+      })
+    } else if (splitType === 'equal') {
+      splits = equalSplit(amountNum, participantIds)
+    } else {
+      splits = participantIds.map((id) => ({
+        participantId: id,
+        amount: parseFloat(customAmounts[id]) || 0,
+      }))
+    }
 
     onSave({
       id: expense?.id,
@@ -314,76 +353,129 @@ export function ExpenseForm({
               >
                 Personalizado
               </button>
-            </div>
-          </div>
-          {trip.groups.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {trip.groups.map((g) => (
+              {trip.groups.length > 0 && (
                 <button
-                  key={g.id}
                   type="button"
-                  onClick={() =>
-                    setParticipantIds(
-                      trip.participants
-                        .filter((p) => p.groupId === g.id)
-                        .map((p) => p.id),
-                    )
-                  }
-                  className="rounded-full border border-neutral-300 dark:border-neutral-700 px-2.5 py-1 text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:border-blue-300 hover:text-blue-600"
+                  onClick={() => setSplitType('group')}
+                  className={`px-2.5 py-1 ${splitType === 'group' ? 'bg-blue-600 text-white' : 'text-neutral-600 dark:text-neutral-400'}`}
                 >
-                  {g.name}
+                  Por subgrupo
                 </button>
-              ))}
+              )}
             </div>
-          )}
-          <div className="space-y-1.5">
-            {trip.participants.map((p) => {
-              const checked = participantIds.includes(p.id)
-              return (
-                <div
-                  key={p.id}
-                  className="flex items-center gap-2 rounded-lg border border-neutral-200 dark:border-neutral-800 px-3 py-2"
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggleParticipant(p.id)}
-                    className="h-4 w-4 rounded accent-blue-600"
-                  />
-                  <span className="flex-1 text-sm text-neutral-800 dark:text-neutral-200">
-                    {p.name}
-                  </span>
-                  {splitType === 'custom' && checked && (
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      step="0.01"
-                      value={customAmounts[p.id] ?? ''}
-                      onChange={(e) =>
-                        setCustomAmounts((prev) => ({
-                          ...prev,
-                          [p.id]: e.target.value,
-                        }))
-                      }
-                      placeholder="0,00"
-                      className="w-24 rounded border border-neutral-300 dark:border-neutral-700 bg-transparent px-2 py-1 text-sm text-right text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  )}
-                  {splitType === 'equal' && checked && participantIds.length > 0 && (
-                    <span className="text-sm text-neutral-500">
-                      {formatCurrency(amountNum / participantIds.length)}
-                    </span>
-                  )}
-                </div>
-              )
-            })}
           </div>
-          {splitType === 'custom' && Math.abs(customDiff) >= 0.01 && (
-            <p className="text-xs text-red-600 mt-1">
-              {customDiff > 0
-                ? `Faltam ${formatCurrency(customDiff)} para completar o valor total.`
-                : `Passou ${formatCurrency(Math.abs(customDiff))} do valor total.`}
-            </p>
+
+          {splitType === 'group' ? (
+            <div className="space-y-1.5">
+              {units.map((u) => {
+                const checked = unitIds.includes(u.id)
+                const unitShare =
+                  checked && unitIds.length > 0
+                    ? amountNum / unitIds.length
+                    : 0
+                return (
+                  <div
+                    key={u.id}
+                    className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-3 py-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleUnit(u.id)}
+                        className="h-4 w-4 rounded accent-blue-600"
+                      />
+                      <span className="flex-1 text-sm text-neutral-800 dark:text-neutral-200">
+                        {u.label}
+                      </span>
+                      {checked && (
+                        <span className="text-sm text-neutral-500">
+                          {formatCurrency(unitShare)}
+                        </span>
+                      )}
+                    </div>
+                    {checked && u.memberIds.length > 1 && (
+                      <p className="mt-1 pl-6 text-xs text-neutral-400">
+                        {formatCurrency(unitShare / u.memberIds.length)} por pessoa (
+                        {u.memberIds.length} pessoas)
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <>
+              {trip.groups.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {trip.groups.map((g) => (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() =>
+                        setParticipantIds(
+                          trip.participants
+                            .filter((p) => p.groupId === g.id)
+                            .map((p) => p.id),
+                        )
+                      }
+                      className="rounded-full border border-neutral-300 dark:border-neutral-700 px-2.5 py-1 text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:border-blue-300 hover:text-blue-600"
+                    >
+                      {g.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="space-y-1.5">
+                {trip.participants.map((p) => {
+                  const checked = participantIds.includes(p.id)
+                  return (
+                    <div
+                      key={p.id}
+                      className="flex items-center gap-2 rounded-lg border border-neutral-200 dark:border-neutral-800 px-3 py-2"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleParticipant(p.id)}
+                        className="h-4 w-4 rounded accent-blue-600"
+                      />
+                      <span className="flex-1 text-sm text-neutral-800 dark:text-neutral-200">
+                        {p.name}
+                      </span>
+                      {splitType === 'custom' && checked && (
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          step="0.01"
+                          value={customAmounts[p.id] ?? ''}
+                          onChange={(e) =>
+                            setCustomAmounts((prev) => ({
+                              ...prev,
+                              [p.id]: e.target.value,
+                            }))
+                          }
+                          placeholder="0,00"
+                          className="w-24 rounded border border-neutral-300 dark:border-neutral-700 bg-transparent px-2 py-1 text-sm text-right text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      )}
+                      {splitType === 'equal' && checked && participantIds.length > 0 && (
+                        <span className="text-sm text-neutral-500">
+                          {formatCurrency(amountNum / participantIds.length)}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              {splitType === 'custom' && Math.abs(customDiff) >= 0.01 && (
+                <p className="text-xs text-red-600 mt-1">
+                  {customDiff > 0
+                    ? `Faltam ${formatCurrency(customDiff)} para completar o valor total.`
+                    : `Passou ${formatCurrency(Math.abs(customDiff))} do valor total.`}
+                </p>
+              )}
+            </>
           )}
         </div>
 
