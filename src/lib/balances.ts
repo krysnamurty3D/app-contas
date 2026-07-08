@@ -117,6 +117,29 @@ export function computeAccountBalances(
   })
 }
 
+/** Scales a set of splits proportionally from their original total down to a
+ * smaller target amount (e.g. one installment of a parceled expense), keeping
+ * the same remainder-distribution rounding used by equalSplit so the result
+ * always sums to exactly targetAmount. */
+export function scaleSplits(
+  splits: { participantId: string; amount: number }[],
+  totalAmount: number,
+  targetAmount: number,
+) {
+  if (splits.length === 0 || totalAmount <= 0) {
+    return splits.map((s) => ({ participantId: s.participantId, amount: 0 }))
+  }
+  const base = splits.map(
+    (s) => Math.floor(((s.amount / totalAmount) * targetAmount) * 100) / 100,
+  )
+  const total = round2(base.reduce((sum, n) => sum + n, 0))
+  const remainderCents = Math.round(round2(targetAmount - total) * 100)
+  return splits.map((s, idx) => ({
+    participantId: s.participantId,
+    amount: round2(base[idx] + (idx < remainderCents ? 0.01 : 0)),
+  }))
+}
+
 export function equalSplit(amount: number, participantIds: string[]) {
   if (participantIds.length === 0) return []
   const base = Math.floor((amount / participantIds.length) * 100) / 100

@@ -3,6 +3,7 @@ import {
   computeAccountBalances,
   computeBalances,
   equalSplit,
+  scaleSplits,
   simplifyDebts,
 } from './balances'
 import type { Account, Expense, Participant } from '../types'
@@ -298,5 +299,37 @@ describe('equalSplit', () => {
 
   it('returns an empty array when there are no participants', () => {
     expect(equalSplit(100, [])).toEqual([])
+  })
+})
+
+describe('scaleSplits', () => {
+  it('scales custom splits down to a smaller installment amount, summing exactly', () => {
+    const splits = [
+      { participantId: 'a', amount: 20 },
+      { participantId: 'b', amount: 80 },
+    ]
+    // Original total 100, one installment is 33.34 (1/3 of 100.02-ish rounding case)
+    const result = scaleSplits(splits, 100, 40)
+    const total = result.reduce((sum, s) => sum + s.amount, 0)
+    expect(total).toBeCloseTo(40, 2)
+    // proportional: a keeps 20%, b keeps 80%
+    expect(result.find((s) => s.participantId === 'a')?.amount).toBeCloseTo(8, 2)
+    expect(result.find((s) => s.participantId === 'b')?.amount).toBeCloseTo(32, 2)
+  })
+
+  it('distributes rounding remainder cents so the total matches exactly', () => {
+    const splits = [
+      { participantId: 'a', amount: 33.34 },
+      { participantId: 'b', amount: 33.33 },
+      { participantId: 'c', amount: 33.33 },
+    ]
+    const result = scaleSplits(splits, 100, 33.34)
+    const total = result.reduce((sum, s) => sum + s.amount, 0)
+    expect(total).toBeCloseTo(33.34, 2)
+  })
+
+  it('returns zero amounts when totalAmount is zero', () => {
+    const splits = [{ participantId: 'a', amount: 0 }]
+    expect(scaleSplits(splits, 0, 50)).toEqual([{ participantId: 'a', amount: 0 }])
   })
 })

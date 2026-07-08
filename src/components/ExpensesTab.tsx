@@ -34,11 +34,13 @@ export function ExpensesTab({ trip }: { trip: Trip }) {
     [trip.expenses],
   )
 
-  const handleSave = (data: Omit<Expense, 'id'> & { id?: string }) => {
-    if (data.id) {
-      updateExpense(trip.id, data as Expense)
-    } else {
-      addExpense(trip.id, data)
+  const handleSave = (items: (Omit<Expense, 'id'> & { id?: string })[]) => {
+    for (const data of items) {
+      if (data.id) {
+        updateExpense(trip.id, data as Expense)
+      } else {
+        addExpense(trip.id, data)
+      }
     }
   }
 
