@@ -17,6 +17,44 @@ function settledAmountOf(e: Expense) {
   )
 }
 
+const GROUP_COLORS = [
+  'text-blue-600 dark:text-blue-400',
+  'text-emerald-600 dark:text-emerald-400',
+  'text-purple-600 dark:text-purple-400',
+  'text-amber-600 dark:text-amber-400',
+  'text-pink-600 dark:text-pink-400',
+  'text-cyan-600 dark:text-cyan-400',
+]
+
+/** How much each subgroup's members owe of this expense, so it's visible at
+ * a glance without opening "Editar". */
+function groupBreakdown(trip: Trip, e: Expense) {
+  if (trip.groups.length === 0) return []
+  const breakdown = trip.groups.map((g, i) => {
+    const memberIds = new Set(
+      trip.participants.filter((p) => p.groupId === g.id).map((p) => p.id),
+    )
+    const amount = e.splits
+      .filter((s) => memberIds.has(s.participantId))
+      .reduce((sum, s) => sum + s.amount, 0)
+    return { label: g.name, amount, colorClass: GROUP_COLORS[i % GROUP_COLORS.length] }
+  })
+  const ungroupedIds = new Set(
+    trip.participants.filter((p) => !p.groupId).map((p) => p.id),
+  )
+  const ungroupedAmount = e.splits
+    .filter((s) => ungroupedIds.has(s.participantId))
+    .reduce((sum, s) => sum + s.amount, 0)
+  if (ungroupedAmount > 0.005) {
+    breakdown.push({
+      label: 'Sem grupo',
+      amount: ungroupedAmount,
+      colorClass: 'text-neutral-500 dark:text-neutral-400',
+    })
+  }
+  return breakdown.filter((g) => g.amount > 0.005)
+}
+
 export function ExpensesTab({ trip }: { trip: Trip }) {
   const { addExpense, updateExpense, deleteExpense } = useTrips()
   const [showForm, setShowForm] = useState(false)
@@ -84,6 +122,7 @@ export function ExpensesTab({ trip }: { trip: Trip }) {
           {sorted.map((e) => {
             const cat = CATEGORIES.find((c) => c.id === e.category)
             const CategoryIconComp = cat?.icon ?? MoreHorizontal
+            const breakdown = groupBreakdown(trip, e)
             return (
               <li
                 key={e.id}
@@ -142,6 +181,15 @@ export function ExpensesTab({ trip }: { trip: Trip }) {
                         ≈ {formatCurrency(e.amount * e.exchangeRate)}{' '}
                         {trip.baseCurrency}
                       </p>
+                    )}
+                    {breakdown.length > 0 && (
+                      <div className="mt-1 space-y-0.5">
+                        {breakdown.map((g, i) => (
+                          <p key={i} className={`text-xs font-medium ${g.colorClass}`}>
+                            {g.label}: {formatCurrency(g.amount)}
+                          </p>
+                        ))}
+                      </div>
                     )}
                   </div>
                 </div>
