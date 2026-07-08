@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react'
 import { useLocalStorage } from '../lib/storage'
-import type { Account, Expense, Participant, Trip } from '../types'
+import type { Account, Expense, GroupSettlement, Participant, Trip } from '../types'
 
 export interface TripsContextValue {
   trips: Trip[]
@@ -23,6 +23,11 @@ export interface TripsContextValue {
     participantId: string,
     groupId: string | null,
   ) => void
+  addGroupSettlement: (
+    tripId: string,
+    settlement: Omit<GroupSettlement, 'id'>,
+  ) => void
+  removeGroupSettlement: (tripId: string, settlementId: string) => void
   /** Merges trips from a backup, skipping any whose id already exists. Returns how many were added. */
   importTrips: (trips: Trip[]) => number
   /** Adds an e-mail to a trip's member list. Only available when synced via Firebase. */
@@ -42,14 +47,15 @@ export function TripsProvider({ children }: { children: ReactNode }) {
     null,
   )
 
-  // Migrate trips saved before the `accounts`/`groups` fields existed.
+  // Migrate trips saved before the `accounts`/`groups`/`groupSettlements` fields existed.
   useEffect(() => {
     setTrips((prev) =>
-      prev.some((t) => !t.accounts || !t.groups)
+      prev.some((t) => !t.accounts || !t.groups || !t.groupSettlements)
         ? prev.map((t) => ({
             ...t,
             accounts: t.accounts ?? [],
             groups: t.groups ?? [],
+            groupSettlements: t.groupSettlements ?? [],
           }))
         : prev,
     )
@@ -73,6 +79,7 @@ export function TripsProvider({ children }: { children: ReactNode }) {
         baseCurrency,
         participants: [],
         groups: [],
+        groupSettlements: [],
         accounts: [],
         expenses: [],
         createdAt: new Date().toISOString(),
@@ -207,6 +214,9 @@ export function TripsProvider({ children }: { children: ReactNode }) {
                 participants: t.participants.map((p) =>
                   p.groupId === groupId ? { ...p, groupId: undefined } : p,
                 ),
+                groupSettlements: t.groupSettlements.filter(
+                  (s) => s.fromGroupId !== groupId && s.toGroupId !== groupId,
+                ),
               }
             : t,
         ),
@@ -228,13 +238,47 @@ export function TripsProvider({ children }: { children: ReactNode }) {
         ),
       )
     },
+    addGroupSettlement: (tripId, settlement) => {
+      setTrips((prev) =>
+        prev.map((t) =>
+          t.id === tripId
+            ? {
+                ...t,
+                groupSettlements: [
+                  ...t.groupSettlements,
+                  { ...settlement, id: newId() },
+                ],
+              }
+            : t,
+        ),
+      )
+    },
+    removeGroupSettlement: (tripId, settlementId) => {
+      setTrips((prev) =>
+        prev.map((t) =>
+          t.id === tripId
+            ? {
+                ...t,
+                groupSettlements: t.groupSettlements.filter(
+                  (s) => s.id !== settlementId,
+                ),
+              }
+            : t,
+        ),
+      )
+    },
     importTrips: (imported) => {
       let added = 0
       setTrips((prev) => {
         const existingIds = new Set(prev.map((t) => t.id))
         const newTrips = imported
           .filter((t) => !existingIds.has(t.id))
-          .map((t) => ({ ...t, accounts: t.accounts ?? [], groups: t.groups ?? [] }))
+          .map((t) => ({
+            ...t,
+            accounts: t.accounts ?? [],
+            groups: t.groups ?? [],
+            groupSettlements: t.groupSettlements ?? [],
+          }))
         added = newTrips.length
         return [...prev, ...newTrips]
       })
