@@ -2,7 +2,7 @@ import { useState } from 'react'
 import * as Icons from 'lucide-react'
 import { Modal } from './ui/Modal'
 import { ACCOUNT_TYPES, type Account, type AccountType, type Trip } from '../types'
-import { quickCurrencies } from '../lib/currencies'
+import { quickCurrencies, formatCurrency } from '../lib/currencies'
 
 function TypeIcon({ icon, size = 16 }: { icon: string; size?: number }) {
   const Icon = (Icons as unknown as Record<string, Icons.LucideIcon>)[icon]
@@ -151,7 +151,7 @@ export function AccountForm({
             />
             {balanceNum > 0 && (
               <p className="text-xs text-neutral-500 mt-1">
-                ≈ {(balanceNum * (parseFloat(exchangeRate) || 0)).toFixed(2)}{' '}
+                ≈ {formatCurrency(balanceNum * (parseFloat(exchangeRate) || 0))}{' '}
                 {trip.baseCurrency}
               </p>
             )}

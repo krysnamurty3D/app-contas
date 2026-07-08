@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import * as Icons from 'lucide-react'
 import { ArrowRight, Scale, PieChart } from 'lucide-react'
 import { computeBalances, simplifyDebts } from '../lib/balances'
+import { formatCurrency } from '../lib/currencies'
 import { CATEGORIES, type Trip } from '../types'
 
 function CategoryIcon({ icon, size = 16 }: { icon: string; size?: number }) {
@@ -49,7 +50,7 @@ export function Dashboard({ trip }: { trip: Trip }) {
       <div className="rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 p-5 text-white">
         <p className="text-blue-100 text-sm">Total gasto na viagem</p>
         <p className="text-3xl font-bold mt-1">
-          {totalSpent.toFixed(2)} {trip.baseCurrency}
+          {formatCurrency(totalSpent)} {trip.baseCurrency}
         </p>
       </div>
 
@@ -79,7 +80,7 @@ export function Dashboard({ trip }: { trip: Trip }) {
                 }`}
               >
                 {b.net > 0.005 && '+'}
-                {b.net.toFixed(2)} {trip.baseCurrency}
+                {formatCurrency(b.net)} {trip.baseCurrency}
               </span>
             </li>
           ))}
@@ -110,7 +111,7 @@ export function Dashboard({ trip }: { trip: Trip }) {
                   <span className="font-medium">{nameOf(trip, s.to)}</span>
                 </div>
                 <span className="font-semibold text-neutral-900 dark:text-neutral-100">
-                  {s.amount.toFixed(2)} {trip.baseCurrency}
+                  {formatCurrency(s.amount)} {trip.baseCurrency}
                 </span>
               </li>
             ))}
@@ -146,7 +147,7 @@ export function Dashboard({ trip }: { trip: Trip }) {
                     />
                   </div>
                   <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100 w-20 text-right">
-                    {c.total.toFixed(2)}
+                    {formatCurrency(c.total)}
                   </span>
                 </div>
               </li>
