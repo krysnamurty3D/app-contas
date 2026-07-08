@@ -84,6 +84,45 @@ describe('computeBalances', () => {
     expect(balances.find((b) => b.participantId === 'b')?.net).toBe(-100)
   })
 
+  it('removes a fully settled expense from balances entirely', () => {
+    const participants = [participant('a'), participant('b')]
+    const expenses = [
+      expense({
+        paidBy: 'a',
+        amount: 100,
+        settledAmount: 100,
+        splits: [
+          { participantId: 'a', amount: 50 },
+          { participantId: 'b', amount: 50 },
+        ],
+      }),
+    ]
+
+    const balances = computeBalances(participants, expenses)
+    expect(balances.find((b) => b.participantId === 'a')?.net).toBe(0)
+    expect(balances.find((b) => b.participantId === 'b')?.net).toBe(0)
+  })
+
+  it('scales down a partially settled expense proportionally', () => {
+    const participants = [participant('a'), participant('b')]
+    const expenses = [
+      expense({
+        paidBy: 'a',
+        amount: 100,
+        settledAmount: 40,
+        splits: [
+          { participantId: 'a', amount: 50 },
+          { participantId: 'b', amount: 50 },
+        ],
+      }),
+    ]
+
+    // 40% settled -> only 60% of the expense still counts.
+    const balances = computeBalances(participants, expenses)
+    expect(balances.find((b) => b.participantId === 'a')?.net).toBe(30)
+    expect(balances.find((b) => b.participantId === 'b')?.net).toBe(-30)
+  })
+
   it('ignores splits for participants that no longer exist', () => {
     const participants = [participant('a')]
     const expenses = [

@@ -29,12 +29,17 @@ export function computeBalances(
 
   for (const e of expenses) {
     const rate = e.exchangeRate || 1
+    // A settled expense (fully or partially) has already been paid back outside
+    // the app, so only its outstanding fraction still counts toward balances.
+    const settled = e.settledAmount ?? 0
+    const outstandingFraction =
+      e.amount > 0 ? Math.max(0, Math.min(1, 1 - settled / e.amount)) : 1
     if (paid[e.paidBy] !== undefined) {
-      paid[e.paidBy] += e.amount * rate
+      paid[e.paidBy] += e.amount * rate * outstandingFraction
     }
     for (const s of e.splits) {
       if (owes[s.participantId] !== undefined) {
-        owes[s.participantId] += s.amount * rate
+        owes[s.participantId] += s.amount * rate * outstandingFraction
       }
     }
   }
