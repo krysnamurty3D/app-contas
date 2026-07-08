@@ -126,15 +126,11 @@ export function ExpenseForm({
     if (!canSave) return
     let splits
     if (splitType === 'group') {
+      // Rateia por pessoa (não por subgrupo), então um subgrupo maior paga
+      // proporcionalmente mais.
       const selectedUnits = units.filter((u) => unitIds.includes(u.id))
-      const perUnit = equalSplit(
-        amountNum,
-        selectedUnits.map((u) => u.id),
-      )
-      splits = selectedUnits.flatMap((u) => {
-        const unitAmount = perUnit.find((s) => s.participantId === u.id)!.amount
-        return equalSplit(unitAmount, u.memberIds)
-      })
+      const allMemberIds = selectedUnits.flatMap((u) => u.memberIds)
+      splits = equalSplit(amountNum, allMemberIds)
     } else if (splitType === 'equal') {
       splits = equalSplit(amountNum, participantIds)
     } else {
@@ -367,42 +363,45 @@ export function ExpenseForm({
 
           {splitType === 'group' ? (
             <div className="space-y-1.5">
-              {units.map((u) => {
-                const checked = unitIds.includes(u.id)
-                const unitShare =
-                  checked && unitIds.length > 0
-                    ? amountNum / unitIds.length
-                    : 0
-                return (
-                  <div
-                    key={u.id}
-                    className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-3 py-2"
-                  >
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleUnit(u.id)}
-                        className="h-4 w-4 rounded accent-blue-600"
-                      />
-                      <span className="flex-1 text-sm text-neutral-800 dark:text-neutral-200">
-                        {u.label}
-                      </span>
-                      {checked && (
-                        <span className="text-sm text-neutral-500">
-                          {formatCurrency(unitShare)}
+              {(() => {
+                const totalPeople = units
+                  .filter((u) => unitIds.includes(u.id))
+                  .reduce((sum, u) => sum + u.memberIds.length, 0)
+                const perPersonShare = totalPeople > 0 ? amountNum / totalPeople : 0
+                return units.map((u) => {
+                  const checked = unitIds.includes(u.id)
+                  const unitShare = checked ? perPersonShare * u.memberIds.length : 0
+                  return (
+                    <div
+                      key={u.id}
+                      className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-3 py-2"
+                    >
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleUnit(u.id)}
+                          className="h-4 w-4 rounded accent-blue-600"
+                        />
+                        <span className="flex-1 text-sm text-neutral-800 dark:text-neutral-200">
+                          {u.label}
                         </span>
+                        {checked && (
+                          <span className="text-sm text-neutral-500">
+                            {formatCurrency(unitShare)}
+                          </span>
+                        )}
+                      </div>
+                      {checked && u.memberIds.length > 1 && (
+                        <p className="mt-1 pl-6 text-xs text-neutral-400">
+                          {formatCurrency(perPersonShare)} por pessoa (
+                          {u.memberIds.length} pessoas)
+                        </p>
                       )}
                     </div>
-                    {checked && u.memberIds.length > 1 && (
-                      <p className="mt-1 pl-6 text-xs text-neutral-400">
-                        {formatCurrency(unitShare / u.memberIds.length)} por pessoa (
-                        {u.memberIds.length} pessoas)
-                      </p>
-                    )}
-                  </div>
-                )
-              })}
+                  )
+                })
+              })()}
             </div>
           ) : (
             <>
