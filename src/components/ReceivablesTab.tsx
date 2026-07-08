@@ -1,11 +1,15 @@
 import { useMemo } from 'react'
-import { HandCoins, Wallet } from 'lucide-react'
+import { ArrowRight, ArrowRightLeft, HandCoins, Wallet } from 'lucide-react'
 import { computeBalances, simplifyDebts } from '../lib/balances'
 import { formatCurrency } from '../lib/currencies'
 import type { Trip } from '../types'
 
 function nameOf(trip: Trip, id: string) {
   return trip.participants.find((p) => p.id === id)?.name ?? '—'
+}
+
+function groupNameOf(trip: Trip, id: string) {
+  return trip.groups.find((g) => g.id === id)?.name ?? '—'
 }
 
 export function ReceivablesTab({ trip }: { trip: Trip }) {
@@ -53,6 +57,17 @@ export function ReceivablesTab({ trip }: { trip: Trip }) {
     [trip.groups, trip.participants, balances],
   )
 
+  const groupSettlements = useMemo(() => {
+    if (groupTotals.length < 2) return []
+    const pseudoBalances = groupTotals.map((g) => ({
+      participantId: g.id,
+      net: g.toReceive - g.toPay,
+      paid: 0,
+      owes: 0,
+    }))
+    return simplifyDebts(pseudoBalances)
+  }, [groupTotals])
+
   if (trip.participants.length === 0) {
     return (
       <p className="text-sm text-neutral-500 text-center py-6">
@@ -97,6 +112,40 @@ export function ReceivablesTab({ trip }: { trip: Trip }) {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {groupTotals.length >= 2 && (
+        <div>
+          <div className="flex items-center gap-2 text-neutral-500 mb-3">
+            <ArrowRightLeft size={18} />
+            <h2 className="font-semibold text-neutral-900 dark:text-neutral-100">
+              Compensação entre subgrupos
+            </h2>
+          </div>
+          {groupSettlements.length === 0 ? (
+            <p className="text-sm text-neutral-500 rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 px-4 py-6 text-center">
+              Os subgrupos estão equilibrados entre si no momento.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {groupSettlements.map((s, i) => (
+                <li
+                  key={i}
+                  className="flex items-center justify-between rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-4 py-3"
+                >
+                  <div className="flex items-center gap-2 text-sm text-neutral-800 dark:text-neutral-200">
+                    <span className="font-medium">{groupNameOf(trip, s.from)}</span>
+                    <ArrowRight size={14} className="text-neutral-400" />
+                    <span className="font-medium">{groupNameOf(trip, s.to)}</span>
+                  </div>
+                  <span className="font-semibold text-neutral-900 dark:text-neutral-100">
+                    {formatCurrency(s.amount)} {trip.baseCurrency}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
