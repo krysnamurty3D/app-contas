@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
-import { Plus, Trash2, Pencil, Receipt, MoreHorizontal } from 'lucide-react'
+import { CheckCircle2, Circle, Plus, Trash2, Pencil, Receipt, MoreHorizontal } from 'lucide-react'
 import { useTrips } from '../context/TripsContext'
 import { CATEGORIES, type Expense, type Trip } from '../types'
 import { formatCurrency } from '../lib/currencies'
 import { ExpenseForm } from './ExpenseForm'
+import { SettleExpenseModal } from './SettleExpenseModal'
 
 function nameOf(trip: Trip, id: string) {
   return trip.participants.find((p) => p.id === id)?.name ?? '—'
@@ -13,6 +14,12 @@ export function ExpensesTab({ trip }: { trip: Trip }) {
   const { addExpense, updateExpense, deleteExpense } = useTrips()
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Expense | undefined>(undefined)
+  const [settling, setSettling] = useState<Expense | undefined>(undefined)
+
+  const handleSettle = (settledAmount: number) => {
+    if (!settling) return
+    updateExpense(trip.id, { ...settling, settledAmount })
+  }
 
   const sorted = useMemo(
     () =>
@@ -79,9 +86,24 @@ export function ExpensesTab({ trip }: { trip: Trip }) {
                       <CategoryIconComp size={16} />
                     </div>
                     <div>
-                      <p className="font-medium text-neutral-900 dark:text-neutral-100">
-                        {e.description}
-                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-medium text-neutral-900 dark:text-neutral-100">
+                          {e.description}
+                        </p>
+                        {e.settledAmount != null && e.settledAmount > 0 && (
+                          <span
+                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                              e.settledAmount >= e.amount
+                                ? 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300'
+                                : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+                            }`}
+                          >
+                            {e.settledAmount >= e.amount
+                              ? 'Paga'
+                              : `Paga parcialmente (${formatCurrency(e.settledAmount)})`}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-neutral-500">
                         {new Date(e.date + 'T00:00:00').toLocaleDateString('pt-BR')} ·{' '}
                         {nameOf(trip, e.paidBy)} pagou · dividido com{' '}
@@ -116,6 +138,21 @@ export function ExpensesTab({ trip }: { trip: Trip }) {
                 </div>
                 <div className="mt-3 flex gap-2 border-t border-neutral-100 dark:border-neutral-800 pt-2">
                   <button
+                    onClick={() => setSettling(e)}
+                    className={`inline-flex items-center gap-1 text-xs ${
+                      e.settledAmount != null && e.settledAmount >= e.amount
+                        ? 'text-green-600'
+                        : 'text-neutral-500 hover:text-green-600'
+                    }`}
+                  >
+                    {e.settledAmount != null && e.settledAmount >= e.amount ? (
+                      <CheckCircle2 size={13} />
+                    ) : (
+                      <Circle size={13} />
+                    )}{' '}
+                    Marcar como paga
+                  </button>
+                  <button
                     onClick={() => openEdit(e)}
                     className="inline-flex items-center gap-1 text-xs text-neutral-500 hover:text-blue-600"
                   >
@@ -144,6 +181,14 @@ export function ExpensesTab({ trip }: { trip: Trip }) {
           expense={editing}
           onClose={() => setShowForm(false)}
           onSave={handleSave}
+        />
+      )}
+
+      {settling && (
+        <SettleExpenseModal
+          expense={settling}
+          onClose={() => setSettling(undefined)}
+          onSave={handleSettle}
         />
       )}
     </div>

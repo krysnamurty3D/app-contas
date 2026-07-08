@@ -18,7 +18,7 @@ export function TripShell({ trip }: { trip: Trip }) {
     { id: 'dashboard', label: 'Resumo', icon: LayoutDashboard },
     { id: 'expenses', label: 'Despesas', icon: Receipt },
     { id: 'accounts', label: 'Saldos', icon: Wallet },
-    { id: 'receivables', label: 'A receber', icon: HandCoins },
+    { id: 'receivables', label: 'Acertos', icon: HandCoins },
     { id: 'participants', label: 'Grupo', icon: Users },
   ]
 

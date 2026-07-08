@@ -78,6 +78,8 @@ export interface Expense {
   paymentMethodId?: string
   splitType: 'equal' | 'custom' | 'group'
   splits: ExpenseSplit[]
+  /** Amount already settled/paid back outside the app, in the expense's own currency. Reduces its weight in balances proportionally. */
+  settledAmount?: number
 }
 
 export interface Trip {
