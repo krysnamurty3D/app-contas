@@ -1,3 +1,16 @@
+import {
+  Bed,
+  Banknote,
+  Car,
+  CreditCard,
+  MoreHorizontal,
+  ShoppingBag,
+  Ticket,
+  Utensils,
+  Wallet,
+  type LucideIcon,
+} from 'lucide-react'
+
 export type Category =
   | 'transporte'
   | 'hospedagem'
@@ -6,13 +19,13 @@ export type Category =
   | 'compras'
   | 'outros'
 
-export const CATEGORIES: { id: Category; label: string; icon: string }[] = [
-  { id: 'transporte', label: 'Transporte', icon: 'Car' },
-  { id: 'hospedagem', label: 'Hospedagem', icon: 'Bed' },
-  { id: 'alimentacao', label: 'Alimentação', icon: 'Utensils' },
-  { id: 'passeios', label: 'Passeios', icon: 'Ticket' },
-  { id: 'compras', label: 'Compras', icon: 'ShoppingBag' },
-  { id: 'outros', label: 'Outros', icon: 'MoreHorizontal' },
+export const CATEGORIES: { id: Category; label: string; icon: LucideIcon }[] = [
+  { id: 'transporte', label: 'Transporte', icon: Car },
+  { id: 'hospedagem', label: 'Hospedagem', icon: Bed },
+  { id: 'alimentacao', label: 'Alimentação', icon: Utensils },
+  { id: 'passeios', label: 'Passeios', icon: Ticket },
+  { id: 'compras', label: 'Compras', icon: ShoppingBag },
+  { id: 'outros', label: 'Outros', icon: MoreHorizontal },
 ]
 
 export interface Participant {
@@ -22,10 +35,10 @@ export interface Participant {
 
 export type AccountType = 'dinheiro' | 'cartao' | 'outro'
 
-export const ACCOUNT_TYPES: { id: AccountType; label: string; icon: string }[] = [
-  { id: 'dinheiro', label: 'Dinheiro', icon: 'Banknote' },
-  { id: 'cartao', label: 'Cartão', icon: 'CreditCard' },
-  { id: 'outro', label: 'Outro', icon: 'Wallet' },
+export const ACCOUNT_TYPES: { id: AccountType; label: string; icon: LucideIcon }[] = [
+  { id: 'dinheiro', label: 'Dinheiro', icon: Banknote },
+  { id: 'cartao', label: 'Cartão', icon: CreditCard },
+  { id: 'outro', label: 'Outro', icon: Wallet },
 ]
 
 export interface Account {
@@ -68,4 +81,6 @@ export interface Trip {
   accounts: Account[]
   expenses: Expense[]
   createdAt: string
+  /** Lowercased e-mails of everyone with access to this trip. Only set for trips synced via Firebase. */
+  memberEmails?: string[]
 }

@@ -1,16 +1,10 @@
 import { useMemo, useState } from 'react'
-import * as Icons from 'lucide-react'
 import { Plus, Trash2, Pencil, Wallet } from 'lucide-react'
 import { useTrips } from '../context/TripsContext'
 import { ACCOUNT_TYPES, type Account, type Trip } from '../types'
 import { computeAccountBalances } from '../lib/balances'
 import { formatCurrency } from '../lib/currencies'
 import { AccountForm } from './AccountForm'
-
-function TypeIcon({ icon, size = 18 }: { icon: string; size?: number }) {
-  const Icon = (Icons as unknown as Record<string, Icons.LucideIcon>)[icon]
-  return Icon ? <Icon size={size} /> : null
-}
 
 export function AccountsTab({ trip }: { trip: Trip }) {
   const { addAccount, updateAccount, deleteAccount } = useTrips()
@@ -79,6 +73,7 @@ export function AccountsTab({ trip }: { trip: Trip }) {
             {trip.accounts.map((a) => {
               const b = balances.find((x) => x.accountId === a.id)!
               const typeInfo = ACCOUNT_TYPES.find((t) => t.id === a.type)
+              const TypeIconComp = typeInfo?.icon ?? Wallet
               const isForeign = a.currency !== trip.baseCurrency
               return (
                 <li
@@ -88,7 +83,7 @@ export function AccountsTab({ trip }: { trip: Trip }) {
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
-                        <TypeIcon icon={typeInfo?.icon ?? 'Wallet'} />
+                        <TypeIconComp size={18} />
                       </div>
                       <div>
                         <p className="font-medium text-neutral-900 dark:text-neutral-100">
