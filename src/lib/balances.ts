@@ -1,0 +1,129 @@
+import type { Account, Expense, Participant } from '../types'
+
+export interface Balance {
+  participantId: string
+  /** Net balance in the trip's base currency. Positive = is owed money, negative = owes money. */
+  net: number
+  paid: number
+  owes: number
+}
+
+export interface Settlement {
+  from: string
+  to: string
+  amount: number
+}
+
+const round2 = (n: number) => Math.round(n * 100) / 100
+
+export function computeBalances(
+  participants: Participant[],
+  expenses: Expense[],
+): Balance[] {
+  const paid: Record<string, number> = {}
+  const owes: Record<string, number> = {}
+  for (const p of participants) {
+    paid[p.id] = 0
+    owes[p.id] = 0
+  }
+
+  for (const e of expenses) {
+    const rate = e.exchangeRate || 1
+    if (paid[e.paidBy] !== undefined) {
+      paid[e.paidBy] += e.amount * rate
+    }
+    for (const s of e.splits) {
+      if (owes[s.participantId] !== undefined) {
+        owes[s.participantId] += s.amount * rate
+      }
+    }
+  }
+
+  return participants.map((p) => ({
+    participantId: p.id,
+    paid: round2(paid[p.id]),
+    owes: round2(owes[p.id]),
+    net: round2(paid[p.id] - owes[p.id]),
+  }))
+}
+
+/** Greedy min-transaction settlement: match biggest creditor with biggest debtor repeatedly. */
+export function simplifyDebts(balances: Balance[]): Settlement[] {
+  const creditors = balances
+    .filter((b) => b.net > 0.005)
+    .map((b) => ({ id: b.participantId, amount: b.net }))
+    .sort((a, b) => b.amount - a.amount)
+  const debtors = balances
+    .filter((b) => b.net < -0.005)
+    .map((b) => ({ id: b.participantId, amount: -b.net }))
+    .sort((a, b) => b.amount - a.amount)
+
+  const settlements: Settlement[] = []
+  let i = 0
+  let j = 0
+  while (i < debtors.length && j < creditors.length) {
+    const debtor = debtors[i]
+    const creditor = creditors[j]
+    const amount = round2(Math.min(debtor.amount, creditor.amount))
+
+    if (amount > 0.005) {
+      settlements.push({ from: debtor.id, to: creditor.id, amount })
+    }
+
+    debtor.amount = round2(debtor.amount - amount)
+    creditor.amount = round2(creditor.amount - amount)
+
+    if (debtor.amount <= 0.005) i++
+    if (creditor.amount <= 0.005) j++
+  }
+
+  return settlements
+}
+
+export interface AccountBalance {
+  accountId: string
+  /** Total spent from this account, in the account's own currency */
+  spent: number
+  /** Remaining balance, in the account's own currency */
+  remaining: number
+  /** Remaining balance, converted to the trip's base currency */
+  remainingBase: number
+}
+
+export function computeAccountBalances(
+  accounts: Account[],
+  expenses: Expense[],
+): AccountBalance[] {
+  return accounts.map((acc) => {
+    const rate = acc.exchangeRate || 1
+    const spentBase = expenses
+      .filter((e) => e.paymentMethodId === acc.id)
+      .reduce((sum, e) => sum + e.amount * (e.exchangeRate || 1), 0)
+    const spent = round2(spentBase / rate)
+    const remaining = round2(acc.initialBalance - spent)
+    return {
+      accountId: acc.id,
+      spent,
+      remaining,
+      remainingBase: round2(remaining * rate),
+    }
+  })
+}
+
+export function equalSplit(amount: number, participantIds: string[]) {
+  if (participantIds.length === 0) return []
+  const base = Math.floor((amount / participantIds.length) * 100) / 100
+  const total = round2(base * participantIds.length)
+  let remainder = round2(amount - total)
+
+  return participantIds.map((id, idx) => {
+    let share = base
+    if (remainder > 0.001 && idx < participantIds.length) {
+      const cents = Math.round(remainder * 100)
+      if (idx < cents) {
+        share = round2(share + 0.01)
+      }
+    }
+    return { participantId: id, amount: share }
+  })
+}
