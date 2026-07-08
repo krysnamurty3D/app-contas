@@ -31,6 +31,13 @@ export const CATEGORIES: { id: Category; label: string; icon: LucideIcon }[] = [
 export interface Participant {
   id: string
   name: string
+  /** Subgroup this participant belongs to (e.g. "Família 1"), if any. */
+  groupId?: string
+}
+
+export interface Group {
+  id: string
+  name: string
 }
 
 export type AccountType = 'dinheiro' | 'cartao' | 'outro'
@@ -78,6 +85,7 @@ export interface Trip {
   name: string
   baseCurrency: string
   participants: Participant[]
+  groups: Group[]
   accounts: Account[]
   expenses: Expense[]
   createdAt: string

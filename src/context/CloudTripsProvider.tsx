@@ -34,7 +34,9 @@ export function CloudTripsProvider({ children }: { children: ReactNode }) {
     )
     return onSnapshot(q, (snapshot) => {
       setTrips(
-        snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as Trip),
+        snapshot.docs.map(
+          (d) => ({ id: d.id, groups: [], ...d.data() }) as Trip,
+        ),
       )
     })
   }, [user?.email])
@@ -65,6 +67,7 @@ export function CloudTripsProvider({ children }: { children: ReactNode }) {
         name,
         baseCurrency,
         participants: [],
+        groups: [],
         accounts: [],
         expenses: [],
         createdAt: new Date().toISOString(),
@@ -147,6 +150,32 @@ export function CloudTripsProvider({ children }: { children: ReactNode }) {
         ),
       }).catch(reportError)
     },
+    addGroup: (tripId, name) => {
+      const trip = trips.find((t) => t.id === tripId)
+      if (!trip) return
+      updateDoc(tripRef(tripId), {
+        groups: [...trip.groups, { id: newId(), name }],
+      }).catch(reportError)
+    },
+    removeGroup: (tripId, groupId) => {
+      const trip = trips.find((t) => t.id === tripId)
+      if (!trip) return
+      updateDoc(tripRef(tripId), {
+        groups: trip.groups.filter((g) => g.id !== groupId),
+        participants: trip.participants.map((p) =>
+          p.groupId === groupId ? { ...p, groupId: undefined } : p,
+        ),
+      }).catch(reportError)
+    },
+    setParticipantGroup: (tripId, participantId, groupId) => {
+      const trip = trips.find((t) => t.id === tripId)
+      if (!trip) return
+      updateDoc(tripRef(tripId), {
+        participants: trip.participants.map((p) =>
+          p.id === participantId ? { ...p, groupId: groupId ?? undefined } : p,
+        ),
+      }).catch(reportError)
+    },
     importTrips: (imported) => {
       const existingIds = new Set(trips.map((t) => t.id))
       const email = user?.email?.toLowerCase()
@@ -155,6 +184,8 @@ export function CloudTripsProvider({ children }: { children: ReactNode }) {
         const { id, ...data } = trip
         setDoc(tripRef(id), {
           ...data,
+          accounts: data.accounts ?? [],
+          groups: data.groups ?? [],
           memberEmails: email ? [email] : [],
         }).catch(reportError)
       }

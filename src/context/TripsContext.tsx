@@ -16,6 +16,13 @@ export interface TripsContextValue {
   addAccount: (tripId: string, account: Omit<Account, 'id'>) => void
   updateAccount: (tripId: string, account: Account) => void
   deleteAccount: (tripId: string, accountId: string) => void
+  addGroup: (tripId: string, name: string) => void
+  removeGroup: (tripId: string, groupId: string) => void
+  setParticipantGroup: (
+    tripId: string,
+    participantId: string,
+    groupId: string | null,
+  ) => void
   /** Merges trips from a backup, skipping any whose id already exists. Returns how many were added. */
   importTrips: (trips: Trip[]) => number
   /** Adds an e-mail to a trip's member list. Only available when synced via Firebase. */
@@ -35,11 +42,15 @@ export function TripsProvider({ children }: { children: ReactNode }) {
     null,
   )
 
-  // Migrate trips saved before the `accounts` field existed.
+  // Migrate trips saved before the `accounts`/`groups` fields existed.
   useEffect(() => {
     setTrips((prev) =>
-      prev.some((t) => !t.accounts)
-        ? prev.map((t) => (t.accounts ? t : { ...t, accounts: [] }))
+      prev.some((t) => !t.accounts || !t.groups)
+        ? prev.map((t) => ({
+            ...t,
+            accounts: t.accounts ?? [],
+            groups: t.groups ?? [],
+          }))
         : prev,
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -61,6 +72,7 @@ export function TripsProvider({ children }: { children: ReactNode }) {
         name,
         baseCurrency,
         participants: [],
+        groups: [],
         accounts: [],
         expenses: [],
         createdAt: new Date().toISOString(),
@@ -176,11 +188,53 @@ export function TripsProvider({ children }: { children: ReactNode }) {
         ),
       )
     },
+    addGroup: (tripId, name) => {
+      setTrips((prev) =>
+        prev.map((t) =>
+          t.id === tripId
+            ? { ...t, groups: [...t.groups, { id: newId(), name }] }
+            : t,
+        ),
+      )
+    },
+    removeGroup: (tripId, groupId) => {
+      setTrips((prev) =>
+        prev.map((t) =>
+          t.id === tripId
+            ? {
+                ...t,
+                groups: t.groups.filter((g) => g.id !== groupId),
+                participants: t.participants.map((p) =>
+                  p.groupId === groupId ? { ...p, groupId: undefined } : p,
+                ),
+              }
+            : t,
+        ),
+      )
+    },
+    setParticipantGroup: (tripId, participantId, groupId) => {
+      setTrips((prev) =>
+        prev.map((t) =>
+          t.id === tripId
+            ? {
+                ...t,
+                participants: t.participants.map((p) =>
+                  p.id === participantId
+                    ? { ...p, groupId: groupId ?? undefined }
+                    : p,
+                ),
+              }
+            : t,
+        ),
+      )
+    },
     importTrips: (imported) => {
       let added = 0
       setTrips((prev) => {
         const existingIds = new Set(prev.map((t) => t.id))
-        const newTrips = imported.filter((t) => !existingIds.has(t.id))
+        const newTrips = imported
+          .filter((t) => !existingIds.has(t.id))
+          .map((t) => ({ ...t, accounts: t.accounts ?? [], groups: t.groups ?? [] }))
         added = newTrips.length
         return [...prev, ...newTrips]
       })

@@ -316,6 +316,26 @@ export function ExpenseForm({
               </button>
             </div>
           </div>
+          {trip.groups.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {trip.groups.map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() =>
+                    setParticipantIds(
+                      trip.participants
+                        .filter((p) => p.groupId === g.id)
+                        .map((p) => p.id),
+                    )
+                  }
+                  className="rounded-full border border-neutral-300 dark:border-neutral-700 px-2.5 py-1 text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:border-blue-300 hover:text-blue-600"
+                >
+                  {g.name}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="space-y-1.5">
             {trip.participants.map((p) => {
               const checked = participantIds.includes(p.id)
