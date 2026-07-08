@@ -34,9 +34,10 @@ export function CloudTripsProvider({ children }: { children: ReactNode }) {
     )
     return onSnapshot(q, (snapshot) => {
       setTrips(
-        snapshot.docs.map(
-          (d) => ({ id: d.id, groups: [], ...d.data() }) as Trip,
-        ),
+        snapshot.docs.map((d) => {
+          const data = d.data() as Partial<Trip>
+          return { id: d.id, ...data, groups: data.groups ?? [] } as Trip
+        }),
       )
     })
   }, [user?.email])
