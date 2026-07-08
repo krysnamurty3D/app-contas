@@ -29,18 +29,20 @@ export function computeBalances(
 
   for (const e of expenses) {
     const rate = e.exchangeRate || 1
-    // A settled expense (fully or partially) has already been paid back outside
-    // the app, so only its outstanding fraction still counts toward balances.
-    const settled = e.settledAmount ?? 0
-    const outstandingFraction =
-      e.amount > 0 ? Math.max(0, Math.min(1, 1 - settled / e.amount)) : 1
-    if (paid[e.paidBy] !== undefined) {
-      paid[e.paidBy] += e.amount * rate * outstandingFraction
-    }
+    // Each split can carry its own settledAmount: money a specific participant
+    // already advanced toward their own share, outside the app. Whatever's
+    // been advanced no longer counts as owed by them, nor as owed *to* the
+    // payer (since that person already got it back).
+    let totalSettled = 0
     for (const s of e.splits) {
+      const settled = Math.max(0, Math.min(s.settledAmount ?? 0, s.amount))
+      totalSettled += settled
       if (owes[s.participantId] !== undefined) {
-        owes[s.participantId] += s.amount * rate * outstandingFraction
+        owes[s.participantId] += (s.amount - settled) * rate
       }
+    }
+    if (paid[e.paidBy] !== undefined) {
+      paid[e.paidBy] += (e.amount - totalSettled) * rate
     }
   }
 

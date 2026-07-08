@@ -18,15 +18,19 @@ function expensesForGroup(trip: Trip, memberIds: string[]) {
   return trip.expenses
     .map((e) => {
       const rate = e.exchangeRate || 1
-      const settled = e.settledAmount ?? 0
-      const outstandingFraction =
-        e.amount > 0 ? Math.max(0, Math.min(1, 1 - settled / e.amount)) : 1
+      const totalSettled = e.splits.reduce(
+        (sum, s) => sum + Math.max(0, Math.min(s.settledAmount ?? 0, s.amount)),
+        0,
+      )
       const paidByGroup = memberIds.includes(e.paidBy)
-        ? e.amount * rate * outstandingFraction
+        ? (e.amount - totalSettled) * rate
         : 0
       const owedByGroup = e.splits
         .filter((s) => memberIds.includes(s.participantId))
-        .reduce((sum, s) => sum + s.amount * rate * outstandingFraction, 0)
+        .reduce((sum, s) => {
+          const settled = Math.max(0, Math.min(s.settledAmount ?? 0, s.amount))
+          return sum + (s.amount - settled) * rate
+        }, 0)
       return {
         id: e.id,
         description: e.description,

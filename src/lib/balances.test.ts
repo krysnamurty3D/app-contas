@@ -90,10 +90,9 @@ describe('computeBalances', () => {
       expense({
         paidBy: 'a',
         amount: 100,
-        settledAmount: 100,
         splits: [
-          { participantId: 'a', amount: 50 },
-          { participantId: 'b', amount: 50 },
+          { participantId: 'a', amount: 50, settledAmount: 50 },
+          { participantId: 'b', amount: 50, settledAmount: 50 },
         ],
       }),
     ]
@@ -109,10 +108,9 @@ describe('computeBalances', () => {
       expense({
         paidBy: 'a',
         amount: 100,
-        settledAmount: 40,
         splits: [
-          { participantId: 'a', amount: 50 },
-          { participantId: 'b', amount: 50 },
+          { participantId: 'a', amount: 50, settledAmount: 20 },
+          { participantId: 'b', amount: 50, settledAmount: 20 },
         ],
       }),
     ]
@@ -121,6 +119,32 @@ describe('computeBalances', () => {
     const balances = computeBalances(participants, expenses)
     expect(balances.find((b) => b.participantId === 'a')?.net).toBe(30)
     expect(balances.find((b) => b.participantId === 'b')?.net).toBe(-30)
+  })
+
+  it('distributes the remaining debt considering who already advanced part of their own share', () => {
+    // A shared expense of 120 paid by 'a', split equally 4 ways (30 each).
+    // 'b' already advanced 15 of their own share, 'c' already advanced 10.
+    // 'a' and 'd' haven't advanced anything.
+    const participants = [participant('a'), participant('b'), participant('c'), participant('d')]
+    const expenses = [
+      expense({
+        paidBy: 'a',
+        amount: 120,
+        splits: [
+          { participantId: 'a', amount: 30 },
+          { participantId: 'b', amount: 30, settledAmount: 15 },
+          { participantId: 'c', amount: 30, settledAmount: 10 },
+          { participantId: 'd', amount: 30 },
+        ],
+      }),
+    ]
+
+    const balances = computeBalances(participants, expenses)
+    // a fronted 120 but already got 15+10=25 back directly from b and c.
+    expect(balances.find((b) => b.participantId === 'a')?.net).toBe(65)
+    expect(balances.find((b) => b.participantId === 'b')?.net).toBe(-15)
+    expect(balances.find((b) => b.participantId === 'c')?.net).toBe(-20)
+    expect(balances.find((b) => b.participantId === 'd')?.net).toBe(-30)
   })
 
   it('ignores splits for participants that no longer exist', () => {
