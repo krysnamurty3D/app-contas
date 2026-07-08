@@ -1,17 +1,32 @@
 import { useState } from 'react'
-import { Plus, Trash2, Users } from 'lucide-react'
+import { Mail, Plus, Trash2, Users } from 'lucide-react'
 import { useTrips } from '../context/TripsContext'
 import type { Trip } from '../types'
 
 export function ParticipantsTab({ trip }: { trip: Trip }) {
-  const { addParticipant, removeParticipant } = useTrips()
+  const { addParticipant, removeParticipant, inviteMember } = useTrips()
   const [name, setName] = useState('')
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteStatus, setInviteStatus] = useState('')
 
   const handleAdd = () => {
     const trimmed = name.trim()
     if (!trimmed) return
     addParticipant(trip.id, trimmed)
     setName('')
+  }
+
+  const handleInvite = async () => {
+    const trimmed = inviteEmail.trim()
+    if (!trimmed || !inviteMember) return
+    setInviteStatus('')
+    try {
+      await inviteMember(trip.id, trimmed)
+      setInviteStatus(`${trimmed} agora tem acesso a esta viagem.`)
+      setInviteEmail('')
+    } catch {
+      setInviteStatus('Não foi possível convidar agora. Tente novamente.')
+    }
   }
 
   const handleRemove = (id: string, participantName: string) => {
@@ -79,6 +94,47 @@ export function ParticipantsTab({ trip }: { trip: Trip }) {
             </li>
           ))}
         </ul>
+      )}
+
+      {inviteMember && (
+        <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 space-y-3">
+          <div className="flex items-center gap-2 text-neutral-500">
+            <Mail size={16} />
+            <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+              Compartilhar viagem
+            </h3>
+          </div>
+          <p className="text-xs text-neutral-500">
+            Convide alguém pelo e-mail que ela usa (ou vai usar) para entrar no app. Ela verá e poderá editar esta viagem.
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="email"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleInvite()}
+              placeholder="pessoa@exemplo.com"
+              className="flex-1 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-transparent px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button
+              onClick={handleInvite}
+              disabled={!inviteEmail.trim()}
+              className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              Convidar
+            </button>
+          </div>
+          {inviteStatus && (
+            <p className="text-xs text-neutral-500">{inviteStatus}</p>
+          )}
+          {trip.memberEmails && trip.memberEmails.length > 0 && (
+            <ul className="text-xs text-neutral-500 space-y-1">
+              {trip.memberEmails.map((email) => (
+                <li key={email}>{email}</li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </div>
   )

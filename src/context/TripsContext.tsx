@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'r
 import { useLocalStorage } from '../lib/storage'
 import type { Account, Expense, Participant, Trip } from '../types'
 
-interface TripsContextValue {
+export interface TripsContextValue {
   trips: Trip[]
   currentTrip: Trip | null
   selectTrip: (id: string | null) => void
@@ -18,11 +18,13 @@ interface TripsContextValue {
   deleteAccount: (tripId: string, accountId: string) => void
   /** Merges trips from a backup, skipping any whose id already exists. Returns how many were added. */
   importTrips: (trips: Trip[]) => number
+  /** Adds an e-mail to a trip's member list. Only available when synced via Firebase. */
+  inviteMember?: (tripId: string, email: string) => Promise<void>
 }
 
-const TripsContext = createContext<TripsContextValue | null>(null)
+export const TripsContext = createContext<TripsContextValue | null>(null)
 
-function newId() {
+export function newId() {
   return crypto.randomUUID()
 }
 

@@ -1,0 +1,15 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /trips/{tripId} {
+      // Anyone signed in whose e-mail is already in memberEmails can read/write the trip.
+      allow read, update, delete: if request.auth != null
+        && request.auth.token.email in resource.data.memberEmails;
+
+      // Creating a trip requires the creator to include their own e-mail as a member.
+      allow create: if request.auth != null
+        && request.auth.token.email in request.resource.data.memberEmails;
+    }
+  }
+}
