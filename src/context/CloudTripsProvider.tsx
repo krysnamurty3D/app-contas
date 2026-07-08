@@ -49,6 +49,11 @@ export function CloudTripsProvider({ children }: { children: ReactNode }) {
     return doc(db, 'trips', tripId)
   }
 
+  const reportError = (err: unknown) => {
+    console.error(err)
+    alert('Não foi possível salvar. Verifique sua conexão e tente novamente.')
+  }
+
   const value: TripsContextValue = {
     trips,
     currentTrip,
@@ -65,82 +70,82 @@ export function CloudTripsProvider({ children }: { children: ReactNode }) {
         createdAt: new Date().toISOString(),
         memberEmails: email ? [email] : [],
       }
-      void setDoc(tripRef(id), trip)
+      setDoc(tripRef(id), trip).catch(reportError)
       setCurrentTripId(id)
       return id
     },
     deleteTrip: (id) => {
-      void deleteDoc(tripRef(id))
+      deleteDoc(tripRef(id)).catch(reportError)
       setCurrentTripId((prev) => (prev === id ? null : prev))
     },
     addParticipant: (tripId, name) => {
       const participant: Participant = { id: newId(), name }
       const trip = trips.find((t) => t.id === tripId)
       if (!trip) return
-      void updateDoc(tripRef(tripId), {
+      updateDoc(tripRef(tripId), {
         participants: [...trip.participants, participant],
-      })
+      }).catch(reportError)
     },
     removeParticipant: (tripId, participantId) => {
       const trip = trips.find((t) => t.id === tripId)
       if (!trip) return
-      void updateDoc(tripRef(tripId), {
+      updateDoc(tripRef(tripId), {
         participants: trip.participants.filter((p) => p.id !== participantId),
         expenses: trip.expenses.filter(
           (e) =>
             e.paidBy !== participantId &&
             !e.splits.some((s) => s.participantId === participantId),
         ),
-      })
+      }).catch(reportError)
     },
     addExpense: (tripId, expense) => {
       const newExpense: Expense = { ...expense, id: newId() }
       const trip = trips.find((t) => t.id === tripId)
       if (!trip) return
-      void updateDoc(tripRef(tripId), {
+      updateDoc(tripRef(tripId), {
         expenses: [...trip.expenses, newExpense],
-      })
+      }).catch(reportError)
     },
     updateExpense: (tripId, expense) => {
       const trip = trips.find((t) => t.id === tripId)
       if (!trip) return
-      void updateDoc(tripRef(tripId), {
+      updateDoc(tripRef(tripId), {
         expenses: trip.expenses.map((e) => (e.id === expense.id ? expense : e)),
-      })
+      }).catch(reportError)
     },
     deleteExpense: (tripId, expenseId) => {
       const trip = trips.find((t) => t.id === tripId)
       if (!trip) return
-      void updateDoc(tripRef(tripId), {
+      updateDoc(tripRef(tripId), {
         expenses: trip.expenses.filter((e) => e.id !== expenseId),
-      })
+      }).catch(reportError)
     },
     addAccount: (tripId, account) => {
       const newAccount: Account = { ...account, id: newId() }
       const trip = trips.find((t) => t.id === tripId)
       if (!trip) return
-      void updateDoc(tripRef(tripId), {
+      updateDoc(tripRef(tripId), {
         accounts: [...trip.accounts, newAccount],
-      })
+      }).catch(reportError)
     },
     updateAccount: (tripId, account) => {
       const trip = trips.find((t) => t.id === tripId)
       if (!trip) return
-      void updateDoc(tripRef(tripId), {
+      updateDoc(tripRef(tripId), {
         accounts: trip.accounts.map((a) => (a.id === account.id ? account : a)),
-      })
+      }).catch(reportError)
     },
     deleteAccount: (tripId, accountId) => {
       const trip = trips.find((t) => t.id === tripId)
       if (!trip) return
-      void updateDoc(tripRef(tripId), {
+      updateDoc(tripRef(tripId), {
         accounts: trip.accounts.filter((a) => a.id !== accountId),
         expenses: trip.expenses.map((e) =>
           e.paymentMethodId === accountId
             ? { ...e, paymentMethodId: undefined }
             : e,
         ),
-      })
+      }).catch(reportError)
     },
     importTrips: (imported) => {
       const existingIds = new Set(trips.map((t) => t.id))
@@ -148,14 +153,15 @@ export function CloudTripsProvider({ children }: { children: ReactNode }) {
       const newTrips = imported.filter((t) => !existingIds.has(t.id))
       for (const trip of newTrips) {
         const { id, ...data } = trip
-        void setDoc(tripRef(id), {
+        setDoc(tripRef(id), {
           ...data,
           memberEmails: email ? [email] : [],
-        })
+        }).catch(reportError)
       }
       return newTrips.length
     },
     inviteMember: async (tripId, email) => {
+      // Errors are surfaced inline by the caller (ParticipantsTab), not via reportError.
       await updateDoc(tripRef(tripId), {
         memberEmails: arrayUnion(email.trim().toLowerCase()),
       })
