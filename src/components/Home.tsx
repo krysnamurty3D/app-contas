@@ -1,16 +1,55 @@
-import { useRef, useState } from 'react'
-import { Download, Plane, Plus, Trash2, Upload } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Download, LogOut, Plane, Plus, Trash2, Upload } from 'lucide-react'
 import { useTrips } from '../context/TripsContext'
 import { Modal } from './ui/Modal'
 import { COMMON_CURRENCIES } from '../lib/currencies'
 import { exportBackup, parseBackup } from '../lib/backup'
+import type { Trip } from '../types'
 
-export function Home() {
+const MIGRATION_DISMISSED_KEY = 'localTripsMigrationDismissed'
+
+export function Home({
+  userEmail,
+  onSignOut,
+}: {
+  userEmail?: string
+  onSignOut?: () => void
+}) {
   const { trips, selectTrip, createTrip, deleteTrip, importTrips } = useTrips()
   const [showNewTrip, setShowNewTrip] = useState(false)
   const [name, setName] = useState('')
   const [baseCurrency, setBaseCurrency] = useState('BRL')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [localTrips, setLocalTrips] = useState<Trip[]>([])
+
+  // Only relevant once signed in to a cloud account: offer to bring over
+  // trips that were saved locally (in this browser) before cloud sync existed.
+  useEffect(() => {
+    if (!onSignOut) return
+    if (localStorage.getItem(MIGRATION_DISMISSED_KEY)) return
+    try {
+      const raw = localStorage.getItem('trips')
+      const parsed = raw ? (JSON.parse(raw) as Trip[]) : []
+      if (Array.isArray(parsed) && parsed.length > 0) setLocalTrips(parsed)
+    } catch {
+      // ignore malformed local data
+    }
+  }, [onSignOut])
+
+  const dismissMigration = () => {
+    localStorage.setItem(MIGRATION_DISMISSED_KEY, '1')
+    setLocalTrips([])
+  }
+
+  const handleMigrate = () => {
+    const added = importTrips(localTrips)
+    dismissMigration()
+    alert(
+      added === 1
+        ? '1 viagem importada para sua conta.'
+        : `${added} viagens importadas para sua conta.`,
+    )
+  }
 
   const handleCreate = () => {
     if (!name.trim()) return
@@ -49,8 +88,20 @@ export function Home() {
           <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
             Minhas Viagens
           </h1>
-          <p className="text-sm text-neutral-500">Despesas e divisão de contas</p>
+          <p className="text-sm text-neutral-500">
+            {userEmail ?? 'Despesas e divisão de contas'}
+          </p>
         </div>
+        {onSignOut && (
+          <button
+            onClick={onSignOut}
+            title="Sair"
+            aria-label="Sair"
+            className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100 hover:text-red-600 dark:hover:bg-neutral-800"
+          >
+            <LogOut size={20} />
+          </button>
+        )}
         <button
           onClick={() => exportBackup(trips)}
           disabled={trips.length === 0}
@@ -80,6 +131,32 @@ export function Home() {
           }}
         />
       </div>
+
+      {localTrips.length > 0 && (
+        <div className="mb-6 rounded-xl border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950 p-4">
+          <p className="text-sm text-blue-900 dark:text-blue-200">
+            Você tem {localTrips.length}{' '}
+            {localTrips.length === 1
+              ? 'viagem salva neste navegador'
+              : 'viagens salvas neste navegador'}{' '}
+            de antes de entrar com sua conta. Importar para sua conta?
+          </p>
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={handleMigrate}
+              className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              Importar
+            </button>
+            <button
+              onClick={dismissMigration}
+              className="rounded-lg px-3 py-1.5 text-sm font-medium text-blue-900 dark:text-blue-200 hover:bg-blue-100 dark:hover:bg-blue-900"
+            >
+              Ignorar
+            </button>
+          </div>
+        </div>
+      )}
 
       {trips.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 p-8 text-center">

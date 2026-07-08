@@ -1,15 +1,9 @@
 import { useMemo, useState } from 'react'
-import * as Icons from 'lucide-react'
-import { Plus, Trash2, Pencil, Receipt } from 'lucide-react'
+import { Plus, Trash2, Pencil, Receipt, MoreHorizontal } from 'lucide-react'
 import { useTrips } from '../context/TripsContext'
 import { CATEGORIES, type Expense, type Trip } from '../types'
 import { formatCurrency } from '../lib/currencies'
 import { ExpenseForm } from './ExpenseForm'
-
-function CategoryIcon({ icon, size = 16 }: { icon: string; size?: number }) {
-  const Icon = (Icons as unknown as Record<string, Icons.LucideIcon>)[icon]
-  return Icon ? <Icon size={size} /> : null
-}
 
 function nameOf(trip: Trip, id: string) {
   return trip.participants.find((p) => p.id === id)?.name ?? '—'
@@ -73,6 +67,7 @@ export function ExpensesTab({ trip }: { trip: Trip }) {
         <ul className="space-y-2">
           {sorted.map((e) => {
             const cat = CATEGORIES.find((c) => c.id === e.category)
+            const CategoryIconComp = cat?.icon ?? MoreHorizontal
             return (
               <li
                 key={e.id}
@@ -81,7 +76,7 @@ export function ExpensesTab({ trip }: { trip: Trip }) {
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-3">
                     <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">
-                      <CategoryIcon icon={cat?.icon ?? 'MoreHorizontal'} />
+                      <CategoryIconComp size={16} />
                     </div>
                     <div>
                       <p className="font-medium text-neutral-900 dark:text-neutral-100">

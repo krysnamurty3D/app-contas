@@ -1,14 +1,8 @@
 import { useMemo } from 'react'
-import * as Icons from 'lucide-react'
 import { ArrowRight, Scale, PieChart } from 'lucide-react'
 import { computeBalances, simplifyDebts } from '../lib/balances'
 import { formatCurrency } from '../lib/currencies'
 import { CATEGORIES, type Trip } from '../types'
-
-function CategoryIcon({ icon, size = 16 }: { icon: string; size?: number }) {
-  const Icon = (Icons as unknown as Record<string, Icons.LucideIcon>)[icon]
-  return Icon ? <Icon size={size} /> : null
-}
 
 function nameOf(trip: Trip, id: string) {
   return trip.participants.find((p) => p.id === id)?.name ?? '—'
@@ -134,7 +128,7 @@ export function Dashboard({ trip }: { trip: Trip }) {
                 className="flex items-center justify-between rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-4 py-3"
               >
                 <div className="flex items-center gap-2.5 text-neutral-800 dark:text-neutral-200">
-                  <CategoryIcon icon={c.icon} />
+                  <c.icon size={16} />
                   <span>{c.label}</span>
                 </div>
                 <div className="flex items-center gap-3 flex-1 max-w-[55%]">

@@ -1,14 +1,10 @@
 import { useMemo, useState } from 'react'
+import { RefreshCw } from 'lucide-react'
 import { Modal } from './ui/Modal'
 import { CATEGORIES, type Category, type Expense, type Trip } from '../types'
 import { equalSplit } from '../lib/balances'
 import { quickCurrencies, formatCurrency } from '../lib/currencies'
-import * as Icons from 'lucide-react'
-
-function CategoryIcon({ icon, size = 16 }: { icon: string; size?: number }) {
-  const Icon = (Icons as unknown as Record<string, Icons.LucideIcon>)[icon]
-  return Icon ? <Icon size={size} /> : null
-}
+import { fetchExchangeRate } from '../lib/exchangeRate'
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
 
@@ -57,6 +53,21 @@ export function ExpenseForm({
       return {}
     },
   )
+  const [fetchingRate, setFetchingRate] = useState(false)
+  const [rateError, setRateError] = useState('')
+
+  const handleFetchRate = async () => {
+    setFetchingRate(true)
+    setRateError('')
+    try {
+      const rate = await fetchExchangeRate(currency, trip.baseCurrency)
+      setExchangeRate(String(rate))
+    } catch (err) {
+      setRateError(err instanceof Error ? err.message : 'Erro ao buscar cotação.')
+    } finally {
+      setFetchingRate(false)
+    }
+  }
 
   const amountNum = parseFloat(amount) || 0
   const isForeign = currency.trim().toUpperCase() !== trip.baseCurrency.toUpperCase()
@@ -142,7 +153,7 @@ export function ExpenseForm({
                     : 'border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400'
                 }`}
               >
-                <CategoryIcon icon={c.icon} />
+                <c.icon size={16} />
                 {c.label}
               </button>
             ))}
@@ -200,15 +211,30 @@ export function ExpenseForm({
             <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
               Câmbio (1 {currency.toUpperCase()} = ? {trip.baseCurrency})
             </label>
-            <input
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step="0.0001"
-              value={exchangeRate}
-              onChange={(e) => setExchangeRate(e.target.value)}
-              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-transparent px-3 py-2.5 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <div className="flex gap-2">
+              <input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.0001"
+                value={exchangeRate}
+                onChange={(e) => setExchangeRate(e.target.value)}
+                className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-transparent px-3 py-2.5 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                type="button"
+                onClick={handleFetchRate}
+                disabled={fetchingRate}
+                title="Buscar cotação atual"
+                aria-label="Buscar cotação atual"
+                className="shrink-0 rounded-lg border border-neutral-300 dark:border-neutral-700 px-3 text-neutral-500 hover:text-blue-600 hover:border-blue-300 disabled:opacity-50"
+              >
+                <RefreshCw size={16} className={fetchingRate ? 'animate-spin' : ''} />
+              </button>
+            </div>
+            {rateError && (
+              <p className="text-xs text-red-600 mt-1">{rateError}</p>
+            )}
             {amountNum > 0 && (
               <p className="text-xs text-neutral-500 mt-1">
                 ≈ {formatCurrency(amountNum * (parseFloat(exchangeRate) || 0))}{' '}

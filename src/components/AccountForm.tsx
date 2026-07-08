@@ -1,13 +1,9 @@
 import { useState } from 'react'
-import * as Icons from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 import { Modal } from './ui/Modal'
 import { ACCOUNT_TYPES, type Account, type AccountType, type Trip } from '../types'
 import { quickCurrencies, formatCurrency } from '../lib/currencies'
-
-function TypeIcon({ icon, size = 16 }: { icon: string; size?: number }) {
-  const Icon = (Icons as unknown as Record<string, Icons.LucideIcon>)[icon]
-  return Icon ? <Icon size={size} /> : null
-}
+import { fetchExchangeRate } from '../lib/exchangeRate'
 
 export function AccountForm({
   trip,
@@ -30,10 +26,25 @@ export function AccountForm({
   const [initialBalance, setInitialBalance] = useState(
     account ? String(account.initialBalance) : '',
   )
+  const [fetchingRate, setFetchingRate] = useState(false)
+  const [rateError, setRateError] = useState('')
 
   const isForeign = currency.trim().toUpperCase() !== trip.baseCurrency.toUpperCase()
   const chips = quickCurrencies(trip.baseCurrency)
   const balanceNum = parseFloat(initialBalance) || 0
+
+  const handleFetchRate = async () => {
+    setFetchingRate(true)
+    setRateError('')
+    try {
+      const rate = await fetchExchangeRate(currency, trip.baseCurrency)
+      setExchangeRate(String(rate))
+    } catch (err) {
+      setRateError(err instanceof Error ? err.message : 'Erro ao buscar cotação.')
+    } finally {
+      setFetchingRate(false)
+    }
+  }
 
   const canSave = name.trim() && currency.trim() && balanceNum >= 0
 
@@ -82,7 +93,7 @@ export function AccountForm({
                     : 'border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400'
                 }`}
               >
-                <TypeIcon icon={t.icon} />
+                <t.icon size={16} />
                 {t.label}
               </button>
             ))}
@@ -140,15 +151,30 @@ export function AccountForm({
             <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
               Câmbio (1 {currency.toUpperCase()} = ? {trip.baseCurrency})
             </label>
-            <input
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step="0.0001"
-              value={exchangeRate}
-              onChange={(e) => setExchangeRate(e.target.value)}
-              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-transparent px-3 py-2.5 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <div className="flex gap-2">
+              <input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.0001"
+                value={exchangeRate}
+                onChange={(e) => setExchangeRate(e.target.value)}
+                className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-transparent px-3 py-2.5 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                type="button"
+                onClick={handleFetchRate}
+                disabled={fetchingRate}
+                title="Buscar cotação atual"
+                aria-label="Buscar cotação atual"
+                className="shrink-0 rounded-lg border border-neutral-300 dark:border-neutral-700 px-3 text-neutral-500 hover:text-blue-600 hover:border-blue-300 disabled:opacity-50"
+              >
+                <RefreshCw size={16} className={fetchingRate ? 'animate-spin' : ''} />
+              </button>
+            </div>
+            {rateError && (
+              <p className="text-xs text-red-600 mt-1">{rateError}</p>
+            )}
             {balanceNum > 0 && (
               <p className="text-xs text-neutral-500 mt-1">
                 ≈ {formatCurrency(balanceNum * (parseFloat(exchangeRate) || 0))}{' '}
